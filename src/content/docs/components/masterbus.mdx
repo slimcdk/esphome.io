@@ -1051,46 +1051,94 @@ Either way the transceiver's ground must reference the bus.
 
 ## Troubleshooting
 
-**Nothing at all is received.** Check the bit rate is `250kbps`, then the termination, then the
-wiring. A scan that hears nothing says so in the log.
+Messages below are the ones the component and the CAN layer actually print, so you can search for
+what you are looking at.
 
-**`ERROR_ALLTXBUSY` on every attempt.** The name is misleading: the ESP32 driver reports this for
-every transmit failure, not only for a full queue, so read it as "the send did not happen" and then
-work out which of two very different faults you have. What separates them is whether anything is
-still being *received*.
+### `send to extended id=0x… failed with error 2!`
+
+The name behind error 2 is `ERROR_ALLTXBUSY`, and it is misleading: the ESP32 driver reports it for
+every transmit failure, not only for a full queue. Read it as "the send did not happen", then work
+out which of two very different faults you have. **What separates them is whether anything is still
+being received.**
 
 *Values keep arriving, only sending fails.* The receive path works and the transmit path does not.
 Check the transceiver's `Rs`/standby pin, then swap the transceiver — this exact symptom has turned
 out to be a module fault.
 
-*Nothing arrives either.* The CAN controller has gone bus-off. It enters that state after about
-thirty consecutive failed transmissions of a single frame, which takes roughly twenty milliseconds,
-and on the ESP32 it then disconnects itself from the bus entirely — so reception stops too and
-every entity goes unavailable. **Nothing in ESPHome brings a controller out of bus-off**: recovery
-needs an explicit call, an asynchronous wait and a second call, and none of them happen. Only a
-reboot restores it.
+*Nothing arrives either.* The controller has gone bus-off. It enters that state after about thirty
+consecutive failed transmissions of one frame — roughly twenty milliseconds — and then disconnects
+itself from the bus entirely, so reception stops too and every entity goes unavailable. **Nothing
+in ESPHome brings a controller out of bus-off**: recovery needs an explicit call, an asynchronous
+wait and a second call, and none of them happen. Only a reboot restores it.
 
-The same reading applies to a channel that was never wired: a controller transmitting onto a bus
-with nothing to acknowledge it reaches bus-off in milliseconds and stays there, looking exactly
-like a broken transceiver. If the whole channel is silent in both directions, suspect the wiring
-before the driver.
+A channel that was never wired looks identical: a controller transmitting where nothing can
+acknowledge it reaches bus-off in milliseconds and stays there. If a channel is silent in both
+directions, suspect the wiring before the driver.
 
-**Entities stay unavailable.** Either the device is not answering — check the address against a
-scan — or nothing is asking. An entity with no `update_interval` transmits nothing and only updates
-when something else on the bus asks for the same field.
+### `Scan heard nothing. Check wiring, bit rate and termination`
 
-**One entity goes unavailable while the rest of its device is fine.** It has a `timeout` of its own
-and the field has not been answered within it. Either the field changes more rarely than the
-timeout allows, or nothing is polling it.
+Nothing at all is being received. Check the bit rate is `250kbps` first — it is the single most
+common cause and the symptom is total silence rather than corruption. Then measure 60 Ω across
+CAN_H and CAN_L with the bus powered down. Then the wiring.
 
-**The log is missing lines or full of half-lines.** The serial log cannot keep up with a busy bus.
-Mute the frame log with `logs: {canbus: WARN}`, raise the baud rate, or read the log over the API
-instead. Two readers on the same serial port also produce interleaved half-lines that look like
-corruption but are not.
+### `Cannot poll field N on the alarm tab: the message that carries its values is not decoded`
 
-**A write is accepted but nothing happens.** See [Writing to the bus](#writing-to-the-bus). Check
-whether another device shares the equipment you are commanding, and that the field takes a write at
-all — nothing on the bus says which do.
+Expected, and not a misconfiguration. The alarm tab can be discovered but not read. See
+[Tabs](#tabs).
+
+### `Cannot write field N on the … tab: only monitoring writes have been verified`
+
+Reading a tab and writing it are separate questions. Only `monitoring` writes have been captured
+and checked. See [Tabs](#tabs).
+
+### `Wrote field N but could not send the frame that follows it`
+
+The value went out but the frame that must follow it did not, so the device may have taken the
+write, ignored it, or half-applied it. Read the field back before assuming anything. This is a
+transmit failure like any other — see error 2 above.
+
+### `Could not put the node request on the bus`
+
+The scan could not transmit, so it falls back to listening for devices that announce themselves.
+You will still find equipment, but only what speaks unprompted. Scanning needs `mode: NORMAL`.
+
+### `Scan is full at N devices`
+
+More devices answered than the scan can hold. The rest are not listed. Raise the limit or scan a
+smaller bus.
+
+### `Maximum number of esp32_can components created already`
+
+More `esp32_can` blocks than the chip has CAN controllers. An ESP32-C6 has two; most other ESP32
+variants have one. Use an [MCP2515](#using-an-external-can-controller) for a further bus.
+
+### `canbus took a long time for an operation`
+
+The frame drain and everything it triggers ran longer than the loop allows. A verbose log over a
+slow serial port is the usual cause: the logger blocks until the port accepts the bytes. Mute the
+frame log, lower the log level, or read the log over the API.
+
+### Entities stay unavailable
+
+Either the device is not answering — check the address against a scan — or nothing is asking. An
+entity with no `update_interval` transmits nothing and only updates when something else on the bus
+asks for the same field.
+
+### One entity goes unavailable while the rest of its device is fine
+
+It has a `timeout` of its own and the field has not been answered within it. Either the field
+changes more rarely than the timeout allows, or nothing is polling it.
+
+### A write is accepted but nothing happens
+
+See [Writing to the bus](#writing-to-the-bus). Check whether another device shares the equipment
+you are commanding, and that the field takes a write at all — nothing on the bus says which do.
+
+### The log is missing lines or is full of half-lines
+
+The serial log cannot keep up with a busy bus. Mute the frame log with `logs: {canbus: WARN}`,
+raise the baud rate, or read the log over the API instead. Two readers on the same serial port also
+produce interleaved half-lines that look like corruption but are not.
 
 ## Limitations
 
@@ -1110,6 +1158,21 @@ all — nothing on the bus says which do.
   infers one. What a field means is a property of your equipment. The configurations above are
   documentation of what has been observed, not something the component knows — use a scan to find
   out what yours reports.
+
+## Resources
+
+Mastervolt publishes no protocol documentation, and there is no specification to link to. What
+exists is other people's measurements, and this component's own.
+
+- [pmarches/masterbus-esp32](https://github.com/pmarches/masterbus-esp32) — packet captures from an
+  unrelated installation, with a Wireshark dissector. Its identifier decode is not the one used
+  here, but the captures are real traffic from equipment this project does not have, and they are
+  what confirmed three of the message numbers documented above.
+- `masterbus_protocol.h` in the component's own source. Every constant carries how far it is
+  actually known, marked VERIFIED or DERIVED, together with what was measured to establish it. It
+  is the authority when this page and the source disagree.
+- [CAN Bus](/components/canbus/) — the layer underneath, and where bit rate, mode and queue lengths
+  are really configured.
 
 ## See Also
 
