@@ -22,6 +22,47 @@ library. Nothing in this component guesses at a frame it has not seen.
 The component sits on top of the standard [CAN Bus](/components/canbus/) component, so any CAN
 platform ESPHome supports will do.
 
+### A configuration to start from
+
+You do not need to know anything about your bus to begin. This is complete: paste it, set the two
+pins, flash, and read the log. It transmits one broadcast, lists every device that answers, and
+prints the configuration for what it finds.
+
+```yaml
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+logger:
+  # The canbus component logs one line per frame. A busy MasterBus carries about 200 a second,
+  # which is far more than a serial log can carry, so mute it.
+  logs:
+    canbus: WARN
+
+canbus:
+  - platform: esp32_can
+    id: mb_can
+    tx_pin: GPIO5     # to the transceiver's TX / D
+    rx_pin: GPIO4     # to the transceiver's RX / R
+    bit_rate: 250kbps
+    mode: NORMAL
+    can_id: 0
+    rx_queue_len: 32
+
+masterbus:
+  id: mb
+  canbus_id: mb_can
+  scan: true
+```
+
+Turn `scan` off again once you have what you need — it walks four tabs of every group of every
+device and takes minutes. Then add `devices:` and the entities the scan printed.
+
+If your equipment is one of the products listed under
+[Configurations for known equipment](#configurations-for-known-equipment), you can take the entity
+blocks from there instead and only change the addresses.
+
 ### Configuring the CAN bus
 
 ```yaml
@@ -47,6 +88,67 @@ canbus:
 > The `canbus` component logs one line per frame at DEBUG. At 200 frames a second that is far more
 > than a 115200 baud serial log can carry. Add `logs: {canbus: WARN}` to your
 > [Logger](/components/logger/) unless you are specifically debugging the bus.
+
+### Using an external CAN controller
+
+Not every board has a CAN peripheral. ESPHome offers exactly two platforms, and which one you can
+use is decided by your MCU:
+
+| Platform | Interface | Works on |
+|---|---|---|
+| [`esp32_can`](/components/canbus/esp32_can/) | built in | the ESP32 family only |
+| [`mcp2515`](/components/canbus/mcp2515/) | SPI | anything ESPHome runs on |
+
+There is **no I2C or UART CAN platform** in ESPHome. If your board has no CAN peripheral, SPI and
+an MCP2515 is the route.
+
+The MCP2515 is a full CAN 2.0B controller, so it handles everything MasterBus needs: 250 kbit/s is
+available on all four supported crystal frequencies, and extended identifiers — which every
+MasterBus message uses — are supported in both directions.
+
+```yaml
+spi:
+  clk_pin: GPIO18
+  mosi_pin: GPIO23
+  miso_pin: GPIO19
+
+canbus:
+  - platform: mcp2515
+    id: mb_can
+    cs_pin: GPIO5
+    clock: 8MHZ       # must match the crystal on your module
+    bit_rate: 250kbps
+    mode: NORMAL
+    can_id: 0
+```
+
+Three things catch people out:
+
+**The `clock` must match the crystal actually fitted to your module**, not what the listing said.
+Boards ship with 8 MHz and 16 MHz crystals and look identical; the part is marked on the can. Get
+it wrong and the bit rate is wrong by the same ratio, which looks like a dead bus rather than like
+a misconfiguration.
+
+**Most cheap MCP2515 modules are 5 V parts.** They pair the controller with a TJA1050 or MCP2551
+transceiver and expect 5 V logic. On a 3.3 V MCU the SPI lines need level shifting, and the
+transceiver itself will not run from 3.3 V. Modules sold as 3.3 V, or ones where you replace the
+transceiver with an SN65HVD230, avoid the problem.
+
+**The module already contains a transceiver.** The [Hardware](#hardware) section below is written
+around wiring a bare transceiver to an MCU's own CAN pins; with an MCP2515 module that part is done
+for you. Everything from [Finding CAN_H and CAN_L](#finding-can_h-and-can_l) onwards still applies
+— termination, grounding and the connector pinout do not care which controller you chose.
+
+> [!WARNING]
+> **The MCP2515 holds only two received frames.** ESPHome polls it from the main loop rather than
+> using its interrupt pin, and empties both buffers on each pass. On a quiet bus that is ample. A
+> MasterBus carrying around 200 frames a second delivers one every five milliseconds, so two slots
+> is a thin margin against a main loop that can take ten milliseconds or more when something else
+> is busy — and anything arriving while both are full is lost. By comparison `esp32_can` buffers in
+> software, and `rx_queue_len: 32` holds well over a hundred milliseconds of the same traffic.
+>
+> Lost frames degrade freshness rather than break anything: a missed answer is asked for again on
+> the next `update_interval`. How much it matters in practice has not been measured here.
 
 ### Configuring the hub
 
@@ -835,6 +937,9 @@ one complication: the connector carries power as well, and its pinout is not pub
   the transceiver turns that into the differential pair. An **SN65HVD230** or **TJA1051T/3** works
   directly with an ESP32. Avoid the **MCP2551** and similar 5 V-only parts — their logic levels do
   not match a 3.3 V MCU without level shifting.
+  If you are using an [MCP2515 module](#using-an-external-can-controller) you already have one on
+  the board and can skip this; check which transceiver is fitted, because the common modules pair
+  the controller with a 5 V part.
 - **A way into the bus.** MasterBus uses RJ45 connectors and daisy-chains between devices. An
   **RJ45 male breakout board** is the least invasive route: it plugs into a spare port on a
   MasterBus hub and brings the eight conductors out to screw terminals, with nothing cut or
