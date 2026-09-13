@@ -65,6 +65,9 @@ masterbus:
   equipment](#finding-your-equipment).
 - **log_all_frames** (*Optional*, boolean, default `false`): log every MasterBus frame at DEBUG,
   with the message type and address already decoded. For protocol work, not for normal use.
+- **on_unknown_frame** (*Optional*, [Automation](/guides/automations#automation)): fires for any
+  frame whose message type this component cannot name. See
+  [`on_unknown_frame`](#on_unknown_frame).
 - **devices** (*Optional*, list): the equipment you want to talk to. See below.
 
 Several hubs may be configured, one per CAN bus.
@@ -102,15 +105,15 @@ masterbus:
   scan: true
 ```
 
-The scan sends a node request, then walks every group of every device that answers, reading each
-field's number, display type, name, unit and range. It prints the result as configuration you can
-paste:
+The scan sends a node request, then walks every group of every device that answers — on all four
+tabs — reading each field's number, display type, name, unit and range. It prints the result as
+configuration you can paste:
 
 ```txt
 [I][masterbus.scan]: Scan found device 0x6D56EA
-[I][masterbus.scan]: Walking 7 devices for their fields.
+[I][masterbus.scan]: Walking 7 devices across all four tabs for their fields.
 [I][masterbus.scan]: sensor:
-[I][masterbus.scan]:   # device 0x6D56EA, group 1: Battery
+[I][masterbus.scan]:   # device 0x6D56EA, monitoring tab, group 1: Battery
 [I][masterbus.scan]:   - platform: masterbus
 [I][masterbus.scan]:     masterbus_device_id: mb_device_6D56EA
 [I][masterbus.scan]:     param: 139
@@ -124,13 +127,29 @@ The group name is printed as a comment above each group's fields, and it matters
 this equipment are short and repeat. A battery block reports three separate fields all called
 `Battery` — voltage, current and temperature — and it is the group that tells them apart.
 
+**A field number only means something together with its tab.** Field 9 is `AC Input` current on a
+MassCombi's monitoring tab; the same number on another tab is another field entirely. So the scan
+prints a `tab:` key for everything outside monitoring, and names the tab in the group comment.
+
+Three of the four tabs can be read. The alarm tab cannot, and the scan says so where it matters:
+
+```txt
+[I][masterbus.scan]:   # device 0x6D56EA, alarm tab, group 0: unnamed
+[I][masterbus.scan]:   # this tab's values cannot be read yet - its data message is not decoded
+[I][masterbus.scan]:   # device 0x6D56EA, configuration tab, group 0: Settings
+[I][masterbus.scan]:   # this tab's data message is derived, not measured - check what it returns
+```
+
+See [Tabs](#tabs) for what each of those two lines means.
+
 The bus does not report whether a field can be written, so the scan always suggests the read-only
 platform of a pair: a `sensor` where a `number` may be possible, a `binary_sensor` where a
 `switch` may be. Promote it yourself if the field turns out to be writable.
 
 > [!TIP]
-> Scanning transmits, so it needs `mode: NORMAL`. It also walks every group of every device and
-> takes minutes on a full installation. Turn it off again once you have your configuration.
+> Scanning transmits, so it needs `mode: NORMAL`. It walks four tabs for every group of every
+> device, so it takes a good many minutes on a full installation. Turn it off again once you have
+> your configuration.
 
 ## Entities
 
@@ -142,8 +161,7 @@ Every platform below accepts these, in addition to its own base schema:
   field belongs to.
 - **param** (**Required**, hex int, `0x0`–`0xFFFF`): the field number.
 - **tab** (*Optional*, default `monitoring`): `monitoring`, `alarm`, `history` or `configuration`.
-  Only `monitoring` has a known frame format; the others are accepted so a configuration can be
-  written now and work when the format is decoded.
+  Three of the four can be read; only `monitoring` can be written. See [Tabs](#tabs).
 - **value_type** (*Optional*): how to read the 32 bits the device sends. Each platform accepts only
   the types it can render, and defaults sensibly, so you rarely need to set this.
 - **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): see [Polling and
@@ -264,10 +282,45 @@ A **text** field does not answer with text. It answers with the number of an ent
 own string table, and the component reads that entry to get the string — two exchanges rather than
 one. A field whose entry the device does not hold publishes as unavailable.
 
-A **time** or **date** field publishes the number the device sent, unchanged. What that number
-counts is not decoded, and rendering it as a clock would only look right. If you can compare it
-with what a Mastervolt display shows for the same field, that comparison is what a decoding would
-have to start from.
+A **time** field counts seconds, and publishes as `h:mm:ss`. The same field type serves both a
+clock and a countdown — a shunt's `Time` is a time of day, its `Remaining` is a span of hours — so
+the hour is not folded into a day and a long span reads as `160:52:00`.
+
+A **date** field packs the calendar into one number, and publishes as `YYYY-MM-DD`.
+
+A number that cannot be either — negative, or larger than the format holds — publishes as
+unavailable and logs a warning, rather than being truncated into something that looks plausible.
+
+## Tabs
+
+A MasterBus device organises what it exposes into four tabs, and `tab:` picks which one an entity
+reads. The same field number means different things on different tabs, so the tab is part of a
+field's address, not a filter.
+
+| Tab | Read | Write |
+|---|---|---|
+| `monitoring` (default) | yes, measured | yes, measured |
+| `configuration` | yes, derived | no |
+| `history` | yes, derived | no |
+| `alarm` | no | no |
+
+**Measured** means frames of that shape were captured on a live bus and checked against what the
+vendor's own software reported for the same field. **Derived** means the message number follows
+from the vendor's own ordering — six of its twelve entries are pinned by captured traffic, and
+these follow the same sequence — but no answer on that tab has been seen. The payload is assumed to
+be monitoring's, a field number and a 32-bit float. An answer that is not that length is dropped
+rather than guessed at, so a wrong assumption shows up as a value that never arrives, not as a
+wrong reading.
+
+The `alarm` tab is different in kind. The vendor gives every other tab a message for reading a
+value; for alarms it files that message with the broadcast messages instead, and its numbering is
+not known. So an alarm field can be discovered by a scan — its number, name, unit and range are all
+readable — and still not be readable as a value. An entity on the `alarm` tab is accepted in
+configuration and refused at runtime with a warning.
+
+Writing stays on `monitoring` alone. The write frame, and the second frame that must follow it,
+were captured on monitoring event fields and nowhere else. The configuration tab is exactly where a
+wrong frame would change a charger's voltage, so it waits for a write to be watched on that tab.
 
 ## Polling and `update_interval`
 
@@ -331,10 +384,68 @@ masterbus:
 
 Fires when nothing has been heard from the device for its `timeout`.
 
-## Example
+### `on_unknown_frame`
 
-A battery bank of six blocks, reading the pack totals from one block's cluster group and each
-block's own readings from its battery group.
+Fires for any frame whose message type this component cannot name. It sits on the hub rather than
+on a device, and deliberately: the frames worth catching here come from equipment that may never
+have been declared, which is exactly what a device-level trigger cannot see.
+
+```yaml
+masterbus:
+  canbus_id: mb_can
+  on_unknown_frame:
+    - logger.log:
+        format: "undecoded message 0x%02X from device 0x%06X, %u bytes"
+        args: ["type", "device", "x.size()"]
+```
+
+Three values are available: `x` is the payload as a `std::vector<uint8_t>`, `type` is the six-bit
+message type, and `device` is the 23-bit address it came from or was addressed to.
+
+This is an instrument, not a feature. The protocol has messages the vendor names and nobody here
+has numbers for — an alarm's value is one of them — and the only way to learn where they sit is to
+catch one. On a healthy bus it never fires.
+
+If you are trying to catch something rare on equipment you cannot sit and watch, push it somewhere
+that keeps it rather than writing it to a log:
+
+```yaml
+    - homeassistant.event:
+        event: esphome.masterbus_unknown
+        data:
+          type: !lambda return format_hex(type);
+          payload: !lambda return format_hex_pretty(x);
+```
+
+Nothing is compiled in unless you configure the trigger.
+
+## Configurations for known equipment
+
+Each section below is a paste-ready configuration for one kind of Mastervolt device. Change the
+`device:` address to your own — [Finding your equipment](#finding-your-equipment) prints it — and
+leave everything else as it stands.
+
+**Field numbers are not standard across Mastervolt equipment.** The same number means different
+things on different products: field 9 is `AC Input` current on a MassCombi and `Time` on a shunt.
+A configuration is only valid for the product it was taken from. If yours is not listed, scan it —
+the scan prints blocks like these for whatever answers.
+
+Only the first section carries the `canbus:` and `logger:` stanzas; the rest assume them, and
+several devices share one hub. Mixing equipment means one `masterbus:` block with each device
+listed under `devices:`.
+
+> [!NOTE]
+> The battery block section was measured on a live installation and is in daily use. The MassCombi
+> and shunt sections were rebuilt from a capture of a **different** installation taken in 2022: the
+> field numbers, names, units and ranges are the devices' own, read out of their string tables, but
+> those two configurations have not themselves been run. Check the values against your equipment's
+> own display before trusting them.
+
+### Lithium battery block
+
+Blocks report twice: a **cluster** group carrying the bank as a whole, which every block answers
+with the same numbers, and a **battery** group carrying that one block's own readings. So the bank
+totals are read from any single block, and the per-block entities are repeated for each.
 
 ```yaml
 canbus:
@@ -363,7 +474,8 @@ masterbus:
       device: 0x6D4ECC
 
 sensor:
-  # Group 0 "Cluster" on any one block reports the pack as a whole.
+  # Group 0, the cluster: the bank as a whole. Read from one block only - every block answers
+  # these with the same numbers, so polling them all is the same value six times.
   - platform: masterbus
     masterbus_device_id: mb_bat1
     param: 0
@@ -382,8 +494,52 @@ sensor:
     device_class: voltage
     state_class: measurement
     accuracy_decimals: 2
+  - platform: masterbus
+    masterbus_device_id: mb_bat1
+    param: 2
+    name: Bank current
+    update_interval: 10s
+    unit_of_measurement: A
+    device_class: current
+    state_class: measurement
+    accuracy_decimals: 2
+  - platform: masterbus
+    masterbus_device_id: mb_bat1
+    param: 3
+    name: Bank capacity consumed
+    update_interval: 10s
+    unit_of_measurement: Ah
+    state_class: measurement
+    accuracy_decimals: 1
+  - platform: masterbus
+    masterbus_device_id: mb_bat1
+    param: 5
+    name: Bank temperature
+    update_interval: 10s
+    unit_of_measurement: "°C"
+    device_class: temperature
+    state_class: measurement
+    accuracy_decimals: 1
 
-  # Group 1 "Battery" is each block's own readings.
+  # Group 1, the battery: this block alone. Repeat the five for every further block, changing
+  # only masterbus_device_id and the names.
+  - platform: masterbus
+    masterbus_device_id: mb_bat1
+    param: 136
+    name: BAT 1 state of charge
+    update_interval: 10s
+    unit_of_measurement: "%"
+    device_class: battery
+    state_class: measurement
+    accuracy_decimals: 1
+  - platform: masterbus
+    masterbus_device_id: mb_bat1
+    param: 138
+    name: BAT 1 capacity consumed
+    update_interval: 10s
+    unit_of_measurement: Ah
+    state_class: measurement
+    accuracy_decimals: 1
   - platform: masterbus
     masterbus_device_id: mb_bat1
     param: 139
@@ -394,14 +550,23 @@ sensor:
     state_class: measurement
     accuracy_decimals: 2
   - platform: masterbus
-    masterbus_device_id: mb_bat2
-    param: 139
-    name: BAT 2 voltage
+    masterbus_device_id: mb_bat1
+    param: 140
+    name: BAT 1 current
     update_interval: 10s
-    unit_of_measurement: V
-    device_class: voltage
+    unit_of_measurement: A
+    device_class: current
     state_class: measurement
     accuracy_decimals: 2
+  - platform: masterbus
+    masterbus_device_id: mb_bat1
+    param: 141
+    name: BAT 1 temperature
+    update_interval: 10s
+    unit_of_measurement: "°C"
+    device_class: temperature
+    state_class: measurement
+    accuracy_decimals: 1
 
 button:
   - platform: masterbus
@@ -412,6 +577,250 @@ button:
     masterbus_device_id: mb_bat1
     param: 117
     name: BAT 1 close relay
+```
+
+> [!WARNING]
+> Fields 117 and 119 operate the contactor that ties the block to the bank. Opening one
+> disconnects a real battery, and nothing asks twice. Neither field reports the contactor's
+> position — the block's own current is the only evidence a command took effect. On the
+> installation this was measured on the blocks are paired and one contactor serves each pair:
+> either block opens it, only the lower-numbered one closes it. See
+> [Writing to the bus](#writing-to-the-bus).
+
+### MassCombi inverter/charger
+
+Four groups: the state fields, the battery side, AC in and AC out.
+
+```yaml
+masterbus:
+  id: mb
+  canbus_id: mb_can
+  devices:
+    - id: mb_combi
+      device: 0x3AF412
+
+sensor:
+  # Group 1: the battery side.
+  - platform: masterbus
+    masterbus_device_id: mb_combi
+    param: 6
+    name: Battery voltage
+    update_interval: 10s
+    unit_of_measurement: V
+    device_class: voltage
+    state_class: measurement
+    accuracy_decimals: 2
+  - platform: masterbus
+    masterbus_device_id: mb_combi
+    param: 7
+    name: Battery current
+    update_interval: 10s
+    unit_of_measurement: A
+    device_class: current
+    state_class: measurement
+    accuracy_decimals: 1
+
+  # Group 2: shore or generator in.
+  - platform: masterbus
+    masterbus_device_id: mb_combi
+    param: 8
+    name: AC input voltage
+    update_interval: 10s
+    unit_of_measurement: V
+    device_class: voltage
+    state_class: measurement
+    accuracy_decimals: 0
+  - platform: masterbus
+    masterbus_device_id: mb_combi
+    param: 9
+    name: AC input current
+    update_interval: 10s
+    unit_of_measurement: A
+    device_class: current
+    state_class: measurement
+    accuracy_decimals: 1
+
+  # Group 3: the inverter output.
+  - platform: masterbus
+    masterbus_device_id: mb_combi
+    param: 10
+    name: AC output voltage
+    update_interval: 10s
+    unit_of_measurement: V
+    device_class: voltage
+    state_class: measurement
+    accuracy_decimals: 0
+  - platform: masterbus
+    masterbus_device_id: mb_combi
+    param: 11
+    name: AC output current
+    update_interval: 10s
+    unit_of_measurement: A
+    device_class: current
+    state_class: measurement
+    accuracy_decimals: 1
+
+  # Group 0: the state fields. Each answers with an index into a list the device holds, so they
+  # are read as list_option - see the note below on turning one into a select.
+  - platform: masterbus
+    masterbus_device_id: mb_combi
+    param: 16
+    name: State
+    value_type: list_option
+    update_interval: 30s
+  - platform: masterbus
+    masterbus_device_id: mb_combi
+    param: 60
+    name: Mode
+    value_type: list_option
+    update_interval: 30s
+  - platform: masterbus
+    masterbus_device_id: mb_combi
+    param: 56
+    name: Power
+    value_type: list_option
+    update_interval: 30s
+  - platform: masterbus
+    masterbus_device_id: mb_combi
+    param: 20
+    name: Inverter
+    value_type: list_option
+    update_interval: 30s
+  - platform: masterbus
+    masterbus_device_id: mb_combi
+    param: 58
+    name: Charger
+    value_type: list_option
+    update_interval: 30s
+  - platform: masterbus
+    masterbus_device_id: mb_combi
+    param: 19
+    name: Shore fuse
+    value_type: list_option
+    update_interval: 30s
+  - platform: masterbus
+    masterbus_device_id: mb_combi
+    param: 14
+    name: Input is genset
+    value_type: list_option
+    update_interval: 30s
+  - platform: masterbus
+    masterbus_device_id: mb_combi
+    param: 17
+    name: Load
+    value_type: list_option
+    update_interval: 30s
+  - platform: masterbus
+    masterbus_device_id: mb_combi
+    param: 18
+    name: State of charger
+    value_type: list_option
+    update_interval: 30s
+```
+
+The state fields are lists, and their ranges say how long each list is: `Inverter` and `Power` and
+`Charger` run 0 to 2, `Mode` 0 to 5, `Load` 0 to 7, `State of charger` 0 to 7, `State` 0 to 9, and
+`Shore fuse` 0 to 27. Individual entries seen on the wire include `Inverting`, `Standby`, `Auto`,
+`On`, `Off`, `No shore`, `5 %` and `18 A`.
+
+The component does not read the list itself, only the index — so to get a
+[`select`](#select) instead, take the entry order off your own equipment's display and write it
+out:
+
+```yaml
+select:
+  - platform: masterbus
+    masterbus_device_id: mb_combi
+    param: 20
+    name: Inverter
+    # Your own list, in your own device's order. The order below is a placeholder: it has not been
+    # read off any equipment, and getting it wrong sends a working command to the wrong setting.
+    options: ["Off", "On", "Standby"]
+```
+
+> [!WARNING]
+> `Inverter`, `Charger` and `Power` switch real equipment. An index the list does not cover
+> publishes as unavailable and logs a warning; an index that lands on the wrong entry does
+> whatever that entry does.
+
+### DC shunt
+
+One group, and the only device seen so far that carries a clock and a calendar.
+
+```yaml
+masterbus:
+  id: mb
+  canbus_id: mb_can
+  devices:
+    - id: mb_shunt
+      device: 0x6F1297
+
+sensor:
+  - platform: masterbus
+    masterbus_device_id: mb_shunt
+    param: 0
+    name: State of charge
+    update_interval: 10s
+    unit_of_measurement: "%"
+    device_class: battery
+    state_class: measurement
+    accuracy_decimals: 0
+  - platform: masterbus
+    masterbus_device_id: mb_shunt
+    param: 1
+    name: Battery voltage
+    update_interval: 10s
+    unit_of_measurement: V
+    device_class: voltage
+    state_class: measurement
+    accuracy_decimals: 2
+  - platform: masterbus
+    masterbus_device_id: mb_shunt
+    param: 2
+    name: Battery current
+    update_interval: 10s
+    unit_of_measurement: A
+    device_class: current
+    state_class: measurement
+    accuracy_decimals: 1
+  - platform: masterbus
+    masterbus_device_id: mb_shunt
+    param: 3
+    name: Capacity consumed
+    update_interval: 10s
+    unit_of_measurement: Ah
+    state_class: measurement
+    accuracy_decimals: 1
+  - platform: masterbus
+    masterbus_device_id: mb_shunt
+    param: 5
+    name: Battery temperature
+    update_interval: 60s
+    unit_of_measurement: "°C"
+    device_class: temperature
+    state_class: measurement
+    accuracy_decimals: 0
+
+text_sensor:
+  # A span, not a time of day - it reads as hours:mm:ss and goes well past 24 hours.
+  - platform: masterbus
+    masterbus_device_id: mb_shunt
+    param: 4
+    name: Time remaining
+    value_type: time
+    update_interval: 60s
+  - platform: masterbus
+    masterbus_device_id: mb_shunt
+    param: 9
+    name: Shunt clock
+    value_type: time
+    update_interval: 5min
+  - platform: masterbus
+    masterbus_device_id: mb_shunt
+    param: 10
+    name: Shunt date
+    value_type: date
+    update_interval: 5min
 ```
 
 ## Hardware
@@ -540,9 +949,26 @@ Either way the transceiver's ground must reference the bus.
 **Nothing at all is received.** Check the bit rate is `250kbps`, then the termination, then the
 wiring. A scan that hears nothing says so in the log.
 
-**Values are received but nothing can be transmitted** (`ERROR_ALLTXBUSY` on every attempt). The
-receiver works and the driver does not. Check the transceiver's `Rs`/standby pin, then swap the
-transceiver — this exact symptom has turned out to be a module fault.
+**`ERROR_ALLTXBUSY` on every attempt.** The name is misleading: the ESP32 driver reports this for
+every transmit failure, not only for a full queue, so read it as "the send did not happen" and then
+work out which of two very different faults you have. What separates them is whether anything is
+still being *received*.
+
+*Values keep arriving, only sending fails.* The receive path works and the transmit path does not.
+Check the transceiver's `Rs`/standby pin, then swap the transceiver — this exact symptom has turned
+out to be a module fault.
+
+*Nothing arrives either.* The CAN controller has gone bus-off. It enters that state after about
+thirty consecutive failed transmissions of a single frame, which takes roughly twenty milliseconds,
+and on the ESP32 it then disconnects itself from the bus entirely — so reception stops too and
+every entity goes unavailable. **Nothing in ESPHome brings a controller out of bus-off**: recovery
+needs an explicit call, an asynchronous wait and a second call, and none of them happen. Only a
+reboot restores it.
+
+The same reading applies to a channel that was never wired: a controller transmitting onto a bus
+with nothing to acknowledge it reaches bus-off in milliseconds and stays there, looking exactly
+like a broken transceiver. If the whole channel is silent in both directions, suspect the wiring
+before the driver.
 
 **Entities stay unavailable.** Either the device is not answering — check the address against a
 scan — or nothing is asking. An entity with no `update_interval` transmits nothing and only updates
@@ -563,15 +989,22 @@ all — nothing on the bus says which do.
 
 ## Limitations
 
-- Only the `monitoring` tab has a known frame format. The other tabs are accepted in configuration
-  but cannot be read or written yet.
-- A time or date field publishes a number rather than a timestamp: what the number counts is not
-  decoded.
-- Nothing reports whether a field is writable, or what a device's article number, product name or
-  serial number is. A device's status comes from whether it answers, not from what it reports.
+- The `alarm` tab cannot be read, and nothing but `monitoring` can be written. See [Tabs](#tabs).
+- A list field reports its index, not its entry. To get names you supply the list yourself, in the
+  device's own order.
+- This component does not read whether a field is writable, nor a device's article number, product
+  name or serial number. The bus carries at least some of it — the vendor's own software reports an
+  article number, and names a "writeable" property — but which message carries what has not been
+  identified. A device's status here comes from whether it answers, not from what it reports.
+- A CAN controller that goes bus-off never recovers on its own. This is a property of the
+  underlying [CAN Bus](/components/canbus/) platform rather than of this component, but it is what
+  a MasterBus node looks like when it dies: every entity unavailable, the bus itself healthy, and
+  only a reboot fixes it. See [Troubleshooting](#troubleshooting).
 - Firmware update over MasterBus is out of scope, and the bootloader tab is deliberately absent.
-- The component carries no table of device types, article numbers or field layouts. What a field
-  means is a property of your equipment; use a scan to find out.
+- The component carries no table of device types, article numbers or field layouts, and never
+  infers one. What a field means is a property of your equipment. The configurations above are
+  documentation of what has been observed, not something the component knows — use a scan to find
+  out what yours reports.
 
 ## See Also
 
