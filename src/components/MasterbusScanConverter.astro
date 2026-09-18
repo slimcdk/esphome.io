@@ -1,0 +1,269 @@
+---
+// Turns the key=value lines a masterbus scan logs into an ESPHome configuration. The firmware
+// reports only what each device answered; which platform a field becomes is decided here, so a
+// correction ships with the documentation rather than with a firmware release.
+---
+
+<div class="masterbus-converter not-content">
+  <label for="masterbus-scan-input">Paste the scan's output</label>
+  <textarea
+    id="masterbus-scan-input"
+    rows="8"
+    spellcheck="false"
+    placeholder='[I][masterbus.scan]: group device=0x6D56EA tab=0 group=1 name="Battery"
+[I][masterbus.scan]: field device=0x6D56EA tab=0 group=1 param=139 display=1 name="Battery" unit="V" min=0 max=600 step=0.01'
+  ></textarea>
+
+  <div class="masterbus-converter-actions">
+    <button type="button" id="masterbus-scan-convert">Convert</button>
+    <span id="masterbus-scan-status"></span>
+  </div>
+
+  <label for="masterbus-scan-output">Configuration</label>
+  <textarea id="masterbus-scan-output" rows="16" spellcheck="false" readonly></textarea>
+</div>
+
+<style>
+  .masterbus-converter {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin: 1rem 0;
+  }
+  .masterbus-converter label {
+    font-weight: 600;
+  }
+  .masterbus-converter textarea {
+    width: 100%;
+    font-family: var(--__sl-font-mono, monospace);
+    font-size: 0.85rem;
+    padding: 0.5rem;
+    border: 1px solid var(--sl-color-gray-4);
+    border-radius: 4px;
+    background: var(--sl-color-bg);
+    color: var(--sl-color-text);
+  }
+  .masterbus-converter-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+  .masterbus-converter button {
+    padding: 0.4rem 1rem;
+    border: 1px solid var(--sl-color-gray-4);
+    border-radius: 4px;
+    background: var(--sl-color-gray-6);
+    color: var(--sl-color-text);
+    cursor: pointer;
+  }
+  .masterbus-converter span {
+    font-size: 0.9rem;
+    color: var(--sl-color-gray-3);
+  }
+</style>
+
+<script is:inline>
+  (function () {
+    const TABS = { 0: "monitoring", 1: "alarm", 2: "history", 3: "configuration" };
+    // Whether a value on that tab can be read at all, and whether the message that reads it has
+    // been watched on a bus or only worked out from the vendor's own ordering.
+    const TAB_READABLE = { 0: "measured", 1: "none", 2: "derived", 3: "derived" };
+
+    // The vendor's display types. A field is only turned into an entity where its type says what
+    // the value means; 9 (device list) and 10 (event) are left alone, and so is anything new.
+    const DISPLAY = {
+      1: { platform: "sensor", writable: "number" },
+      2: { platform: "select", readOnly: "sensor", valueType: "list_option" },
+      3: { platform: "select", readOnly: "sensor", valueType: "list_option" },
+      4: { platform: "binary_sensor", writable: "switch" },
+      5: { platform: "button" },
+      6: { platform: "text_sensor" },
+      7: { platform: "text_sensor", valueType: "time" },
+      8: { platform: "text_sensor", valueType: "date" },
+      11: { platform: "binary_sensor", writable: "switch" },
+    };
+    const WRITES = new Set(["select", "button", "switch", "number"]);
+
+    function parseLine(line) {
+      const header = line.lastIndexOf("]: ");
+      const body = (header === -1 ? line : line.slice(header + 3)).trim();
+      const kind = body.startsWith("field ") ? "field" : body.startsWith("group ") ? "group" : null;
+      if (kind === null) return null;
+
+      const entry = { kind: kind };
+      let at = kind.length + 1;
+      while (at < body.length) {
+        while (at < body.length && body[at] === " ") at++;
+        const equals = body.indexOf("=", at);
+        if (equals === -1) break;
+        const key = body.slice(at, equals);
+        at = equals + 1;
+        let value = "";
+        if (body[at] === '"') {
+          at++;
+          while (at < body.length && body[at] !== '"') {
+            if (body[at] !== "\\") {
+              value += body[at++];
+            } else if (body[at + 1] === "x") {
+              value += String.fromCharCode(parseInt(body.substr(at + 2, 2), 16));
+              at += 4;
+            } else {
+              value += body[at + 1];
+              at += 2;
+            }
+          }
+          at++;
+        } else {
+          const end = body.indexOf(" ", at);
+          value = body.slice(at, end === -1 ? body.length : end);
+          at = end === -1 ? body.length : end;
+        }
+        entry[key] = value;
+      }
+      return entry;
+    }
+
+    function deviceId(address) {
+      return "mb_device_" + address.replace(/^0x/i, "").toUpperCase();
+    }
+
+    function quote(text) {
+      return '"' + text.replace(/\\/g, "\\\\").replace(/"/g, '\\"') + '"';
+    }
+
+    function convert(text) {
+      const lines = text.split("\n").map(parseLine).filter(Boolean);
+      const fields = lines.filter((entry) => entry.kind === "field");
+      if (fields.length === 0) return "# Nothing to convert: no scan lines found in what was pasted.";
+
+      const groupNames = {};
+      for (const group of lines.filter((entry) => entry.kind === "group")) {
+        groupNames[group.device + "/" + group.tab + "/" + group.group] = group.name;
+      }
+
+      const devices = [];
+      const blocks = {};
+      const notes = [];
+      let slowest = 0;
+
+      for (const field of fields) {
+        if (devices.indexOf(field.device) === -1) devices.push(field.device);
+        const tab = Number(field.tab);
+        const where = "device " + field.device + ", " + (TABS[tab] || "tab " + tab) + " tab, group " + field.group;
+
+        if (field.display === undefined) {
+          notes.push("# " + where + ", field " + field.param + ": the device did not say what this field is.");
+          continue;
+        }
+        if (TAB_READABLE[tab] === "none") {
+          notes.push("# " + where + ", field " + field.param + ": this tab's values cannot be read yet.");
+          continue;
+        }
+        const display = DISPLAY[Number(field.display)];
+        if (display === undefined) {
+          notes.push("# " + where + ", field " + field.param + ": display type " + field.display + " is not mapped.");
+          continue;
+        }
+
+        // Only monitoring has ever been seen written, so elsewhere the read-only half is offered.
+        const monitoring = tab === 0;
+        let platform = display.platform;
+        if (!monitoring && WRITES.has(platform)) {
+          if (display.readOnly === undefined) {
+            notes.push("# " + where + ", field " + field.param + ": only a monitoring field can be written.");
+            continue;
+          }
+          platform = display.readOnly;
+        }
+
+        const interval = Number(field.display) === 1 ? "10s" : "5min";
+        if (platform !== "button") slowest = Math.max(slowest, interval === "10s" ? 10 : 300);
+
+        const lines_out = [];
+        lines_out.push("  - platform: masterbus");
+        lines_out.push("    masterbus_device_id: " + deviceId(field.device));
+        if (!monitoring) lines_out.push("    tab: " + TABS[tab]);
+        lines_out.push("    param: " + field.param);
+        lines_out.push("    name: " + quote(field.name === undefined ? "Field " + field.param : field.name));
+        if (platform !== "button") lines_out.push("    update_interval: " + interval);
+        if (display.valueType !== undefined && platform !== "select") {
+          lines_out.push("    value_type: " + display.valueType);
+        }
+        if (field.unit !== undefined && field.unit !== "" && (platform === "sensor" || platform === "number")) {
+          lines_out.push("    unit_of_measurement: " + quote(field.unit));
+        }
+        if (platform === "select") {
+          // The bus does not report what a list's options are called, only which number is set.
+          const count = field.min === "0" && field.max !== undefined ? Number(field.max) + 1 : 1;
+          lines_out.push("    # the bus does not report option names; these are in the device's own order");
+          lines_out.push(
+            "    options: [" +
+              Array.from({ length: Math.min(Math.max(count, 1), 16) }, (_, index) => '"option ' + index + '"').join(
+                ", ",
+              ) +
+              "]",
+          );
+        }
+        if (platform === "number") {
+          lines_out.push("    min_value: " + (field.min === undefined ? 0 : field.min));
+          lines_out.push("    max_value: " + (field.max === undefined ? 100 : field.max));
+          lines_out.push("    step: " + (field.step === undefined ? 1 : field.step));
+        }
+        if (TAB_READABLE[tab] === "derived") {
+          lines_out.push("    # this tab's value message is worked out, not watched: check what it returns");
+        }
+        if (display.writable !== undefined && monitoring) {
+          lines_out.push("    # to control it instead, change the platform to " + display.writable);
+        }
+
+        const groupName = groupNames[field.device + "/" + field.tab + "/" + field.group];
+        const heading = "  # " + where + (groupName ? ": " + groupName : "");
+        blocks[platform] = blocks[platform] || {};
+        blocks[platform][heading] = blocks[platform][heading] || [];
+        blocks[platform][heading].push(lines_out.join("\n"));
+      }
+
+      // A device answers only when it is asked, so its timeout has to outlast the slowest field
+      // configured for it.
+      const timeout = Math.max(slowest * 2, 120);
+      const out = ["masterbus:", "  canbus_id: mb_can", "  devices:"];
+      for (const device of devices) {
+        out.push("    - id: " + deviceId(device));
+        out.push("      device: " + device);
+        out.push("      timeout: " + timeout + "s");
+      }
+      for (const platform of Object.keys(blocks)) {
+        out.push("");
+        out.push(platform + ":");
+        for (const heading of Object.keys(blocks[platform])) {
+          out.push(heading);
+          out.push(blocks[platform][heading].join("\n"));
+        }
+      }
+      if (notes.length > 0) {
+        out.push("");
+        out.push("# Fields left out:");
+        for (const note of notes) out.push(note);
+      }
+      return out.join("\n");
+    }
+
+    const input = document.getElementById("masterbus-scan-input");
+    const output = document.getElementById("masterbus-scan-output");
+    const status = document.getElementById("masterbus-scan-status");
+    const button = document.getElementById("masterbus-scan-convert");
+    if (input === null || output === null || button === null) return;
+
+    button.addEventListener("click", function () {
+      const text = input.value;
+      output.value = convert(text);
+      const count = text
+        .split("\n")
+        .map(parseLine)
+        .filter(function (entry) {
+          return entry !== null && entry.kind === "field";
+        }).length;
+      if (status !== null) status.textContent = count + (count === 1 ? " field read" : " fields read");
+    });
+  })();
+</script>

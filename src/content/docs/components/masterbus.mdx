@@ -5,6 +5,8 @@ sidebar:
   label: "MasterBus"
 ---
 
+import MasterbusScanConverter from '@components/MasterbusScanConverter.astro';
+
 Read and control Mastervolt equipment — battery blocks, chargers, inverters, displays — from
 ESPHome over a CAN transceiver.
 
@@ -193,7 +195,9 @@ masterbus:
 - **device** (**Required**, hex int): the device's MasterBus address, `0x0` to `0x7FFFFF`. The
   extended CAN identifier gives the address 23 bits; the rest carries the message type.
 - **timeout** (*Optional*, [Time](/guides/configuration-types#time), default `60s`): how long
-  without a frame before the device counts as offline and its entities go unavailable.
+  without a frame before the device counts as offline and its entities go unavailable. A device
+  says nothing unless it is asked, so where this hub is the only node polling one, its timeout has
+  to outlast the slowest `update_interval` among its own entities. ESPHome warns when it does not.
 - **on_online** / **on_offline** (*Optional*, [Automation](/automations/actions/)): see
   [Automations](#automations).
 
@@ -208,45 +212,41 @@ masterbus:
 ```
 
 The scan sends a node request, then walks every group of every device that answers — on all four
-tabs — reading each field's number, display type, name, unit and range. It prints the result as
-configuration you can paste:
+tabs — reading each field's number, display type, name, unit and range. It reports what each
+device answered, one line per field and one per group:
 
 ```txt
 [I][masterbus.scan]: Scan found device 0x6D56EA
 [I][masterbus.scan]: Walking 7 devices across all four tabs for their fields.
-[I][masterbus.scan]: sensor:
-[I][masterbus.scan]:   # device 0x6D56EA, monitoring tab, group 1: Battery
-[I][masterbus.scan]:   - platform: masterbus
-[I][masterbus.scan]:     masterbus_device_id: mb_device_6D56EA
-[I][masterbus.scan]:     param: 139
-[I][masterbus.scan]:     name: "Battery"
-[I][masterbus.scan]:     update_interval: 10s
-[I][masterbus.scan]:     unit_of_measurement: "V"
-[I][masterbus.scan]:     # range 0 to 600 step 0.01
+[I][masterbus.scan]: group device=0x6D56EA tab=0 group=1 name="Battery"
+[I][masterbus.scan]: field device=0x6D56EA tab=0 group=1 param=139 display=1 name="Battery" unit="V" min=0 max=600 step=0.01
 ```
 
-The group name is printed as a comment above each group's fields, and it matters: field names on
-this equipment are short and repeat. A battery block reports three separate fields all called
+Copy those lines into the converter below to get a configuration out of them. Log prefixes and
+timestamps do not need trimming off first.
+
+<MasterbusScanConverter />
+
+The lines carry only what the device reported: `tab` and `display` are the vendor's own numbers,
+and a key is simply absent where the device did not answer for it. A field with no `display` at
+all is one the device would not describe, and the converter leaves it out rather than guessing.
+
+The group name matters, and the converter carries it through as a comment: field names on this
+equipment are short and repeat. A battery block reports three separate fields all called
 `Battery` — voltage, current and temperature — and it is the group that tells them apart.
 
 **A field number only means something together with its tab.** Field 9 is `AC Input` current on a
-MassCombi's monitoring tab; the same number on another tab is another field entirely. So the scan
-prints a `tab:` key for everything outside monitoring, and names the tab in the group comment.
+MassCombi's monitoring tab; the same number on another tab is another field entirely.
 
-Three of the four tabs can be read. The alarm tab cannot, and the scan says so where it matters:
+Three of the four tabs can be read. The alarm tab cannot: its fields are reported so you can see
+what is there, and the converter leaves them out of the configuration. See [Tabs](#tabs).
 
-```txt
-[I][masterbus.scan]:   # device 0x6D56EA, alarm tab, group 0: unnamed
-[I][masterbus.scan]:   # this tab's values cannot be read yet - its data message is not decoded
-[I][masterbus.scan]:   # device 0x6D56EA, configuration tab, group 0: Settings
-[I][masterbus.scan]:   # this tab's data message is derived, not measured - check what it returns
-```
-
-See [Tabs](#tabs) for what each of those two lines means.
-
-The bus does not report whether a field can be written, so the scan always suggests the read-only
-platform of a pair: a `sensor` where a `number` may be possible, a `binary_sensor` where a
-`switch` may be. Promote it yourself if the field turns out to be writable.
+The bus does not report whether a field can be written, so the converter offers the read-only
+platform of a pair — a `sensor` where a `number` may be possible, a `binary_sensor` where a
+`switch` may be — and says in a comment what to change it to. A list field is the exception: it is
+offered as a `select` on the monitoring tab, because that is the only way to see an option by name
+rather than by number. The bus does not report the names themselves, so the converter writes
+placeholders in the device's own order for you to fill in.
 
 > [!TIP]
 > Scanning transmits, so it needs `mode: NORMAL`. It walks four tabs for every group of every
@@ -262,8 +262,9 @@ Every platform below accepts these, in addition to its own base schema:
 - **masterbus_device_id** (**Required**, [ID](/guides/configuration-types#id)): which device this
   field belongs to.
 - **param** (**Required**, hex int, `0x0`–`0xFFFF`): the field number.
-- **tab** (*Optional*, default `monitoring`): `monitoring`, `alarm`, `history` or `configuration`.
-  Three of the four can be read; only `monitoring` can be written. See [Tabs](#tabs).
+- **tab** (*Optional*, default `monitoring`): `monitoring`, `history` or `configuration`. Only
+  `monitoring` can be written. The alarm tab takes no entity, because nothing reads an alarm's
+  value yet; a scan still reports what is on it. See [Tabs](#tabs).
 - **value_type** (*Optional*): how to read the 32 bits the device sends. Each platform accepts only
   the types it can render, and defaults sensibly, so you rarely need to set this.
 - **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): see [Polling and
@@ -300,7 +301,7 @@ binary_sensor:
   - platform: masterbus
     masterbus_device_id: mb_charger
     param: 21
-    name: Charger running
+    name: Charger state
     update_interval: 1min
 ```
 
@@ -313,7 +314,7 @@ switch:
   - platform: masterbus
     masterbus_device_id: mb_charger
     param: 21
-    name: Charger on
+    name: Charger state control
 ```
 
 The switch publishes nothing when you operate it. It follows what the device reports afterwards,
@@ -404,7 +405,7 @@ field's address, not a filter.
 | `monitoring` (default) | yes, measured | yes, measured |
 | `configuration` | yes, derived | no |
 | `history` | yes, derived | no |
-| `alarm` | no | no |
+| `alarm` | no, and no entity | no |
 
 **Measured** means frames of that shape were captured on a live bus and checked against what the
 vendor's own software reported for the same field. **Derived** means the message number follows
@@ -417,8 +418,8 @@ wrong reading.
 The `alarm` tab is different in kind. The vendor gives every other tab a message for reading a
 value; for alarms it files that message with the broadcast messages instead, and its numbering is
 not known. So an alarm field can be discovered by a scan — its number, name, unit and range are all
-readable — and still not be readable as a value. An entity on the `alarm` tab is accepted in
-configuration and refused at runtime with a warning.
+readable — and still not be readable as a value. An entity on the `alarm` tab is refused in
+configuration, because it could only ever sit unknown.
 
 Writing stays on `monitoring` alone. The write frame, and the second frame that must follow it,
 were captured on monitoring event fields and nowhere else. The configuration tab is exactly where a
@@ -507,6 +508,11 @@ message type, and `device` is the 23-bit address it came from or was addressed t
 This is an instrument, not a feature. The protocol has messages the vendor names and nobody here
 has numbers for — an alarm's value is one of them — and the only way to learn where they sit is to
 catch one. On a healthy bus it never fires.
+
+If yours does fire, the lines it logs are worth reporting: turn on `log_all_frames` alongside it,
+note what the equipment was doing at the time, and open an issue with both. A frame line can be
+pasted into a test exactly as it was logged, so a message type somebody else's equipment sends can
+be decoded without that equipment being on hand.
 
 If you are trying to catch something rare on equipment you cannot sit and watch, push it somewhere
 that keeps it rather than writing it to a log:
@@ -1081,10 +1087,11 @@ Nothing at all is being received. Check the bit rate is `250kbps` first — it i
 common cause and the symptom is total silence rather than corruption. Then measure 60 Ω across
 CAN_H and CAN_L with the bus powered down. Then the wiring.
 
-### `Cannot poll field N on the alarm tab: the message that carries its values is not decoded`
+### `the alarm tab cannot be read: ...`
 
-Expected, and not a misconfiguration. The alarm tab can be discovered but not read. See
-[Tabs](#tabs).
+A configuration error, raised where an entity asks for the `alarm` tab. The tab can be discovered
+but not read, so there is nothing for such an entity to ask. A scan still reports what is on it.
+See [Tabs](#tabs).
 
 ### `Cannot write field N on the … tab: only monitoring writes have been verified`
 
