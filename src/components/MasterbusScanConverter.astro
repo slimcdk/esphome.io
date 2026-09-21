@@ -87,9 +87,10 @@
     function parseLine(line) {
       const header = line.lastIndexOf("]: ");
       const body = (header === -1 ? line : line.slice(header + 3)).trim();
-      const kind = body.startsWith("field ") ? "field" : body.startsWith("group ") ? "group" : null;
-      if (kind === null) return null;
-
+      const kind = ["device", "group", "field"].find(function (name) {
+        return body.startsWith(name + " ");
+      });
+      if (kind === undefined) return null;
       const entry = { kind: kind };
       let at = kind.length + 1;
       while (at < body.length) {
@@ -134,7 +135,11 @@
     function convert(text) {
       const lines = text.split("\n").map(parseLine).filter(Boolean);
       const fields = lines.filter((entry) => entry.kind === "field");
-      if (fields.length === 0) return "# Nothing to convert: no scan lines found in what was pasted.";
+      // A scan opens each device with a line of its own, so a device that describes no fields is
+      // still configurable. Older scans printed no such line; the field lines still name it.
+      const announced = lines.filter((entry) => entry.kind === "device");
+      if (fields.length === 0 && announced.length === 0)
+        return "# Nothing to convert: no scan lines found in what was pasted.";
 
       const groupNames = {};
       for (const group of lines.filter((entry) => entry.kind === "group")) {
@@ -142,6 +147,11 @@
       }
 
       const devices = [];
+      const products = {};
+      for (const device of announced) {
+        if (devices.indexOf(device.device) === -1) devices.push(device.device);
+        if (device.product !== undefined) products[device.device] = device.product;
+      }
       const blocks = {};
       const notes = [];
       let slowest = 0;
@@ -231,6 +241,9 @@
         out.push("    - id: " + deviceId(device));
         out.push("      device: " + device);
         out.push("      timeout: " + timeout + "s");
+        // The product a device reports itself as. Which product each code belongs to is listed
+        // under "Configurations for known equipment", and a code absent there is one to report.
+        if (products[device] !== undefined) out.push("      # reports itself as product " + products[device]);
       }
       for (const platform of Object.keys(blocks)) {
         out.push("");
@@ -238,6 +251,11 @@
         for (const heading of Object.keys(blocks[platform])) {
           out.push(heading);
           out.push(blocks[platform][heading].join("\n"));
+        }
+      }
+      for (const device of devices) {
+        if (!fields.some((field) => field.device === device)) {
+          notes.push("# device " + device + " answered for no field, so it carries no entities.");
         }
       }
       if (notes.length > 0) {
