@@ -132,6 +132,57 @@
       return '"' + text.replace(/\\/g, "\\\\").replace(/"/g, '\\"') + '"';
     }
 
+    // ESPHome refuses two entities of one platform with the same name, and MasterBus names repeat:
+    // a battery block reports three fields all called "Battery", and six identical blocks report
+    // the same names as each other. So a repeated name is told apart by its unit within one device,
+    // and by the device's address across several - the only identity the bus gives.
+    function displayNames(fields, groupNames) {
+      const perDevice = {};
+      for (const field of fields) {
+        const base = fieldBase(field);
+        perDevice[field.device] = perDevice[field.device] || {};
+        perDevice[field.device][base] = (perDevice[field.device][base] || 0) + 1;
+      }
+
+      const label = {};
+      const wearers = {};
+      for (const field of fields) {
+        const base = fieldBase(field);
+        let text = base;
+        if (perDevice[field.device][base] > 1) {
+          text = field.unit ? base + " (" + field.unit + ")" : base + " " + field.param;
+        }
+        label[fieldKey(field)] = text;
+        wearers[text] = wearers[text] || [];
+        if (wearers[text].indexOf(field.device) === -1) wearers[text].push(field.device);
+      }
+
+      const names = {};
+      const taken = {};
+      let prefixed = false;
+      for (const field of fields) {
+        let text = label[fieldKey(field)];
+        if (wearers[text].length > 1) {
+          text = field.device.replace(/^0x/i, "").toUpperCase() + " " + text;
+          prefixed = true;
+        }
+        // What is left is one device using one name for two different fields, and only the field
+        // number separates those.
+        while (taken[text] !== undefined) text = text + " " + field.param;
+        taken[text] = true;
+        names[fieldKey(field)] = text;
+      }
+      return { names: names, prefixed: prefixed };
+    }
+
+    function fieldBase(field) {
+      return field.name === undefined || field.name === "" ? "Field " + field.param : field.name;
+    }
+
+    function fieldKey(field) {
+      return field.device + "/" + field.tab + "/" + field.param;
+    }
+
     function convert(text) {
       const lines = text.split("\n").map(parseLine).filter(Boolean);
       const fields = lines.filter((entry) => entry.kind === "field");
@@ -145,6 +196,8 @@
       for (const group of lines.filter((entry) => entry.kind === "group")) {
         groupNames[group.device + "/" + group.tab + "/" + group.group] = group.name;
       }
+      const resolved = displayNames(fields, groupNames);
+      const names = resolved.names;
 
       const devices = [];
       const products = {};
@@ -194,7 +247,7 @@
         lines_out.push("    masterbus_device_id: " + deviceId(field.device));
         if (!monitoring) lines_out.push("    tab: " + TABS[tab]);
         lines_out.push("    param: " + field.param);
-        lines_out.push("    name: " + quote(field.name === undefined ? "Field " + field.param : field.name));
+        lines_out.push("    name: " + quote(names[fieldKey(field)]));
         if (platform !== "button") lines_out.push("    update_interval: " + interval);
         if (display.valueType !== undefined && platform !== "select") {
           lines_out.push("    value_type: " + display.valueType);
@@ -236,7 +289,13 @@
       // A device answers only when it is asked, so its timeout has to outlast the slowest field
       // configured for it.
       const timeout = Math.max(slowest * 2, 120);
-      const out = ["masterbus:", "  canbus_id: mb_can", "  devices:"];
+      const out = [];
+      if (resolved.prefixed) {
+        out.push("# Where two devices report the same field name, the name carries the device's");
+        out.push("# address so that it is unique. Rename those to what the equipment is called.");
+        out.push("");
+      }
+      out.push("masterbus:", "  canbus_id: mb_can", "  devices:");
       for (const device of devices) {
         out.push("    - id: " + deviceId(device));
         out.push("      device: " + device);
