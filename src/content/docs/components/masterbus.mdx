@@ -385,7 +385,7 @@ A **text** field does not answer with text. It answers with the number of an ent
 own string table, and the component reads that entry to get the string — two exchanges rather than
 one. A field whose entry the device does not hold publishes as unavailable.
 
-A **time** field counts seconds, and publishes as `h:mm:ss`. The same field type serves both a
+A **time** field counts seconds, and publishes as `hh:mm:ss`. The same field type serves both a
 clock and a countdown — a shunt's `Time` is a time of day, its `Remaining` is a span of hours — so
 the hour is not folded into a day and a long span reads as `160:52:00`.
 
@@ -393,6 +393,30 @@ A **date** field packs the calendar into one number, and publishes as `YYYY-MM-D
 
 A number that cannot be either — negative, or larger than the format holds — publishes as
 unavailable and logs a warning, rather than being truncated into something that looks plausible.
+
+If you want the number the device sent as well as the rendered text, declare the same field twice
+— once as a `text_sensor` with `value_type: time`, and once as a `sensor` with `value_type: float`:
+
+```yaml
+sensor:
+  - platform: masterbus
+    masterbus_device_id: mb_shunt
+    param: 6
+    name: Time remaining raw
+    value_type: float
+    update_interval: 5min
+
+text_sensor:
+  - platform: masterbus
+    masterbus_device_id: mb_shunt
+    param: 6
+    name: Time remaining
+    value_type: time
+```
+
+One answer feeds every entity configured for that field, and an entity that hears an answer it did
+not ask for skips its own next poll, so the second entity costs no extra traffic. Give the
+`update_interval` to one of them.
 
 ## Tabs
 
