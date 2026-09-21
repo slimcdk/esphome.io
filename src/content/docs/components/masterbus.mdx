@@ -58,8 +58,8 @@ masterbus:
   scan: true
 ```
 
-Turn `scan` off again once you have what you need — it walks four tabs of every group of every
-device and takes minutes. Then add `devices:` and the entities the scan printed.
+Turn `scan` off again once you have what you need. Then add `devices:` and the entities the scan
+printed.
 
 If your equipment is one of the products listed under
 [Configurations for known equipment](#configurations-for-known-equipment), you can take the entity
@@ -259,9 +259,10 @@ rather than by number. The bus does not report the names themselves, so the conv
 placeholders in the device's own order for you to fill in.
 
 > [!TIP]
-> Scanning transmits, so it needs `mode: NORMAL`. It walks four tabs for every group of every
-> device, so it takes a good many minutes on a full installation. Turn it off again once you have
-> your configuration.
+> Scanning transmits, so it needs `mode: NORMAL`. On an installation of eight devices it reported
+> 513 fields across all four tabs of every group in about a hundred seconds — it asks a device how
+> many groups a tab holds rather than finding out by asking for one that is not there. Turn it off
+> again once you have your configuration.
 
 ## Entities
 
