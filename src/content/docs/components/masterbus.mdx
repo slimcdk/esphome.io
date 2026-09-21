@@ -1185,8 +1185,10 @@ transmit failure like any other — see error 2 above.
 
 ### `Could not put the node request on the bus`
 
-The scan could not transmit, so it falls back to listening for devices that announce themselves.
-You will still find equipment, but only what speaks unprompted. Scanning needs `mode: NORMAL`.
+The scan could not transmit, so it falls back to the announcements other nodes' requests bring
+in. A device only announces itself when something asks, so on a bus where a display panel or
+another bridge is polling you will still find equipment, and on a bus where this node is alone you
+will find nothing. Scanning needs `mode: NORMAL`.
 
 ### `Scan is full at N devices`
 
