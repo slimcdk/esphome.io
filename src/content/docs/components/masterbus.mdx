@@ -169,6 +169,11 @@ masterbus:
   equipment](#finding-your-equipment).
 - **log_all_frames** (*Optional*, boolean, default `false`): log every MasterBus frame at DEBUG,
   with the message type and address already decoded. For protocol work, not for normal use.
+- **node_request_interval** (*Optional*, [Time](/guides/configuration-types#time), at least `1s`):
+  ask every device on the bus to announce itself this often. A device only announces itself when a
+  node asks, and an announcement keeps a device online even when nothing polls it. Where another
+  node on the bus already asks, such as the vendor's own software, this is not needed. Off by
+  default.
 - **on_unknown_frame** (*Optional*, [Automation](/automations)): fires for any
   frame whose message type this component cannot name. See
   [`on_unknown_frame`](#on_unknown_frame).
