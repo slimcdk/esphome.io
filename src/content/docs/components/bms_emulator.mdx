@@ -1,0 +1,178 @@
+---
+description: "Instructions for feeding an inverter battery data over CAN in ESPHome, as a battery's BMS would."
+title: "BMS Emulator"
+---
+
+The BMS Emulator component stands in for a battery's management system (BMS) towards an inverter.
+You give it the battery's measurements as sensors and its limits as values, and every second it
+sends the inverter the frames a supported battery would send. The inverter then charges and
+discharges the battery as if it were talking to that battery.
+
+This is for batteries whose own BMS does not speak to your inverter: a bank built from other
+equipment, or one whose data reaches ESPHome some other way.
+
+The component sends on a [CAN Bus](/components/canbus/), which has to be configured separately. It
+must be in `NORMAL` mode so that the emulator can send, and at the bit rate the inverter uses for
+its battery: 500 kbit/s for a Growatt SPH.
+
+> [!WARNING]
+> The inverter trusts what this component sends. It charges up to the charge voltage and current
+> you set, and it does not check them against the battery. A wrong limit can overcharge or damage
+> the battery. Take every voltage and current from the battery's own specification, and check what
+> the inverter reports before you leave it running.
+
+## Supported Types
+
+- `growatt_pylontech`: the Pylontech low-voltage CAN frame set, with the changes a Growatt SPH needs.
+  Tested with a Growatt SPH (3.6 kVA), firmware RA1.0, with its battery type set to *Lithium*.
+
+This type follows Pylontech's low-voltage CAN protocol (V1.2) with three differences, each needed by, or
+taken from, the inverter it was tested with:
+
+- The temperature in frame `0x356` is sent in 0.01 °C steps. Pylontech's document says 0.1 °C, but a
+  Growatt SPH reads the field in hundredths: 20.6 °C sent in tenths reads as 2 °C.
+- The discharge current limit in frame `0x351` is sent as a negative number.
+- The battery also sends frame `0x305` with a counter that goes up by one every cycle.
+
+Other inverters that accept Pylontech batteries may read these fields differently. Check what the
+inverter reports for temperature and the current limits before you rely on it.
+
+## Configuration
+
+```yaml
+bms_emulator:
+  - type: growatt_pylontech
+    canbus_id: inverter_can
+    voltage_id: battery_voltage
+    current_id: battery_current
+    state_of_charge_id: battery_state_of_charge
+    temperature_id: battery_temperature
+    charge_voltage: 55.0
+    discharge_voltage: 48.0
+    charge_current_limit: 100
+    discharge_current_limit: 100
+```
+
+The four sensors can be any sensors in the configuration, for example values read from the
+battery's own bus, or template sensors that combine several batteries.
+
+## Configuration Variables
+
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): the ID of this emulator, used by the
+  binary sensor below.
+
+- **type** (**Required**): the frame set to send. Only `growatt_pylontech` is supported.
+
+- **canbus_id** (**Required**, [ID](/guides/configuration-types#id)): the [CAN Bus](/components/canbus/)
+  the inverter is on.
+
+- **voltage_id** (**Required**, [ID](/guides/configuration-types#id)): a sensor with the battery's
+  voltage, in volts.
+
+- **current_id** (**Required**, [ID](/guides/configuration-types#id)): a sensor with the battery's
+  current, in amperes: positive while it charges, negative while it discharges.
+
+- **state_of_charge_id** (**Required**, [ID](/guides/configuration-types#id)): a sensor with the
+  battery's state of charge, in percent. It is sent as a whole number from 0 to 100.
+
+- **temperature_id** (**Required**, [ID](/guides/configuration-types#id)): a sensor with the
+  battery's temperature, in °C.
+
+- **state_of_health** (*Optional*, [templatable](/automations/templates/), float, 0 to 100): the
+  battery's state of health, in percent. Defaults to `100`.
+
+- **charge_voltage** (**Required**, [templatable](/automations/templates/), float): the voltage the
+  inverter charges up to, in volts.
+
+- **discharge_voltage** (**Required**, [templatable](/automations/templates/), float): the lowest
+  voltage the inverter discharges down to, in volts.
+
+- **charge_current_limit** (**Required**, [templatable](/automations/templates/), float): the
+  highest current the inverter may charge with, in amperes. `0` stops charging.
+
+- **discharge_current_limit** (**Required**, [templatable](/automations/templates/), float): the
+  highest current the inverter may take from the battery, in amperes. Give it as a positive number;
+  the component sends it with the sign the inverter expects.
+
+- **charge_enabled** (*Optional*, [templatable](/automations/templates/), boolean): whether the
+  battery accepts a charge. Defaults to `true`.
+
+- **discharge_enabled** (*Optional*, [templatable](/automations/templates/), boolean): whether the
+  battery can be discharged. Defaults to `true`.
+
+- **module_count** (*Optional*, int, 1 to 255): the number of battery modules reported to the
+  inverter. Defaults to `1`.
+
+- **inverter_frame_id** (*Optional*, int, `0x0` to `0x7FF`): the frame the inverter sends, whose
+  arrival shows that an inverter is on the bus. Defaults to `0x301`, which a Growatt SPH sends.
+
+- **inverter_timeout** (*Optional*, [Time](/guides/configuration-types#time)): how long the
+  inverter's frame may be missing before the inverter counts as gone. Defaults to `5s`.
+
+- **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): how often the frames
+  are sent. Defaults to `1s`.
+
+## How It Behaves
+
+Every update, the component sends its frames one after another. If any of the four sensors has no
+value, for example because the battery's data has stopped arriving, it sends nothing at all. The
+inverter then treats the battery as lost, as it would a real BMS that went quiet, instead of acting
+on old readings. Sending starts again as soon as all four sensors have a value, and each change is
+logged once.
+
+A value outside what a frame can carry is sent as the nearest value it can carry.
+
+### Frames Sent by `growatt_pylontech`
+
+All frames use 11-bit identifiers and little-endian values. Voltages in `0x351` are in 0.1 V and currents in
+0.1 A.
+
+| ID | Bytes | Contents |
+| --- | --- | --- |
+| `0x305` | 8 | A counter in byte 0 that goes up by one every cycle |
+| `0x35E` | 8 | `PYLON` followed by three zero bytes |
+| `0x35C` | 2 | Charge enabled in bit 7 and discharge enabled in bit 6 of byte 0 |
+| `0x356` | 6 | Voltage in 0.01 V, current in 0.1 A, temperature in 0.01 °C |
+| `0x355` | 4 | State of charge and state of health, in whole percent |
+| `0x351` | 8 | Charge voltage, charge current limit, discharge current limit (negative), discharge voltage |
+| `0x359` | 7 | Every alarm and warning flag clear, the module count in byte 4 |
+
+The component does not send alarms or warnings, and it does not request a forced charge.
+
+## Limits That Follow the Battery
+
+Values given as a lambda are read on every update, so a limit can follow the battery's state. This
+lowers the charge current near a full charge, and stops charging while a template binary sensor
+reports a fault:
+
+```yaml
+bms_emulator:
+  - type: growatt_pylontech
+    # ...
+    charge_current_limit: !lambda |-
+      if (id(battery_fault).state)
+        return 0.0f;
+      return id(battery_state_of_charge).state >= 98 ? 20.0f : 100.0f;
+    charge_enabled: !lambda "return !id(battery_fault).state;"
+```
+
+## Binary Sensor
+
+```yaml
+binary_sensor:
+  - platform: bms_emulator
+    inverter_online:
+      name: Inverter online
+```
+
+- **bms_emulator_id** (*Optional*, [ID](/guides/configuration-types#id)): the emulator to report
+  on. Needed only when there is more than one.
+
+- **inverter_online** (*Optional*): on while the inverter's frame (see `inverter_frame_id`) keeps
+  arriving, and off once it has been missing for `inverter_timeout`. All options from
+  [Binary Sensor](/components/binary_sensor#config-binary_sensor).
+
+## See Also
+
+- [CAN Bus](/components/canbus/)
+- [Pylontech Battery](/components/pylontech/), to read a Pylontech battery's own console
