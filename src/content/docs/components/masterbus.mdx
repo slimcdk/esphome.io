@@ -174,9 +174,9 @@ masterbus:
   node asks, and an announcement keeps a device online even when nothing polls it. Where another
   node on the bus already asks, such as the vendor's own software, this is not needed. Off by
   default.
-- **on_unknown_frame** (*Optional*, [Automation](/automations)): fires for any
-  frame whose message type this component cannot name. See
-  [`on_unknown_frame`](#on_unknown_frame).
+- **on_unknown_frame** (*Optional*, [Automation](/automations)): fires for any frame this
+  component reads past without understanding: a message type it cannot name, or a write that
+  another node sent. See [`on_unknown_frame`](#on_unknown_frame).
 - **devices** (*Optional*, list): the equipment you want to talk to. See below.
 
 Several hubs may be configured, one per CAN bus.
@@ -443,17 +443,19 @@ field's address, not a filter.
 | Tab | Read | Write |
 |---|---|---|
 | `monitoring` (default) | yes, measured | yes, measured |
-| `configuration` | yes, derived | no |
+| `configuration` | yes, seen | no |
 | `history` | yes, derived | no |
 | `alarm` | no, and no entity | no |
 
 **Measured** means frames of that shape were captured on a live bus and checked against what the
-vendor's own software reported for the same field. **Derived** means the message number follows
-from the vendor's own ordering — six of its twelve entries are pinned by captured traffic, and
-these follow the same sequence — but no answer on that tab has been seen. The payload is assumed to
-be monitoring's, a field number and a 32-bit float. An answer that is not that length is dropped
-rather than guessed at, so a wrong assumption shows up as a value that never arrives, not as a
-wrong reading.
+vendor's own software reported for the same field. **Seen** means answers of that shape came back
+on a live bus and read sensibly — a display's own name, its message texts, a battery's charge
+thresholds — but were not compared with the vendor's software. **Derived** means the message number
+follows from the vendor's own ordering — seven of its twelve entries are pinned by captured traffic,
+and these follow the same sequence — but no answer on that tab has been seen. The payload is
+assumed to be monitoring's, a field number and a 32-bit float. An answer that is not that length is
+dropped rather than guessed at, so a wrong assumption shows up as a value that never arrives, not
+as a wrong reading.
 
 The `alarm` tab is different in kind. The vendor gives every other tab a message for reading a
 value; for alarms it files that message with the broadcast messages instead, and its numbering is
@@ -529,9 +531,21 @@ Fires when nothing has been heard from the device for its `timeout`.
 
 ### `on_unknown_frame`
 
-Fires for any frame whose message type this component cannot name. It sits on the hub rather than
-on a device, and deliberately: the frames worth catching here come from equipment that may never
-have been declared, which is exactly what a device-level trigger cannot see.
+Fires for any frame this component reads past without understanding. There are two kinds:
+
+- **A message type it cannot name.** The protocol has messages the vendor names and nobody here has
+  numbers for, and an alarm's value is one of them.
+- **A write that another node sent.** A write uses the same message as a read, six bytes instead of
+  two, and is followed by a four-byte frame. This hub never hears its own frames, so a write seen
+  here came from somewhere else: a device carrying out one of its events, or a button pressed on a
+  display panel. A value answer of any length other than six bytes is reported the same way.
+
+Reads and their answers, and the walks a display makes through a device's menus, are what a bus
+carries all day, and they never fire it.
+
+It sits on the hub rather than on a device, and deliberately: the frames worth catching here come
+from equipment that may never have been declared, which is exactly what a device-level trigger
+cannot see.
 
 ```yaml
 masterbus:
@@ -543,11 +557,12 @@ masterbus:
 ```
 
 Three values are available: `x` is the payload as a `std::vector<uint8_t>`, `type` is the six-bit
-message type, and `device` is the 23-bit address it came from or was addressed to.
+message type, and `device` is the 23-bit address in the frame. For a write that is the device
+written to; a write does not say who sent it.
 
-This is an instrument, not a feature. The protocol has messages the vendor names and nobody here
-has numbers for — an alarm's value is one of them — and the only way to learn where they sit is to
-catch one. On a healthy bus it never fires.
+This is an instrument, not a feature. The only way to learn where an unnamed message sits, or what
+an event does on the wire, is to catch one. On a bus where nothing but polling happens it stays
+quiet.
 
 If yours does fire, the lines it logs are worth reporting: turn on `log_all_frames` alongside it,
 note what the equipment was doing at the time, and open an issue with both. A frame line can be
