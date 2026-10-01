@@ -67,10 +67,12 @@
     const TABS = { 0: "monitoring", 1: "alarm", 2: "history", 3: "configuration" };
     // Whether a value on that tab can be read at all, and whether the message that reads it has
     // been watched on a bus or only worked out from the vendor's own ordering.
-    const TAB_READABLE = { 0: "measured", 1: "none", 2: "derived", 3: "derived" };
+    const TAB_READABLE = { 0: "measured", 1: "none", 2: "derived", 3: "seen" };
 
     // The vendor's display types. A field is only turned into an entity where its type says what
-    // the value means; 9 (device list) and 10 (event) are left alone, and so is anything new.
+    // the value means, and anything new is left alone. 9 (device list) and 10 (event) answer with
+    // the index of an entry in a list the device holds; what the entry names is not decoded yet,
+    // so they are read as that index and nothing is written.
     const DISPLAY = {
       1: { platform: "sensor", writable: "number" },
       2: { platform: "select", readOnly: "sensor", valueType: "list_option" },
@@ -80,6 +82,8 @@
       6: { platform: "text_sensor" },
       7: { platform: "text_sensor", valueType: "time" },
       8: { platform: "text_sensor", valueType: "date" },
+      9: { platform: "sensor", valueType: "list_option" },
+      10: { platform: "sensor", valueType: "list_option" },
       11: { platform: "binary_sensor", writable: "switch" },
     };
     const WRITES = new Set(["select", "button", "switch", "number"]);
