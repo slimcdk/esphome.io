@@ -15,7 +15,7 @@ The component sends on a [CAN Bus](/components/canbus/), which has to be configu
 must be in `NORMAL` mode so that the emulator can send, and at the bit rate the inverter uses for
 its battery: 500 kbit/s for a Growatt SPH.
 
-> [!WARNING]
+> [!CAUTION]
 > The inverter trusts what this component sends. It charges up to the charge voltage and current
 > you set, and it does not check them against the battery. A wrong limit can overcharge or damage
 > the battery. Take every voltage and current from the battery's own specification, and check what
@@ -26,13 +26,18 @@ its battery: 500 kbit/s for a Growatt SPH.
 - `growatt_pylontech`: the Pylontech low-voltage CAN frame set, with the changes a Growatt SPH needs.
   Tested with a Growatt SPH (3.6 kVA), firmware RA1.0, with its battery type set to *Lithium*.
 
-This type follows Pylontech's low-voltage CAN protocol (V1.2) with three differences, each needed by, or
-taken from, the inverter it was tested with:
+This type follows Pylontech's low-voltage CAN protocol, V1.2 of 2018-04-08. Pylontech does not
+publish the document itself; an
+[unofficial copy](https://github.com/maxx-ukoo/jk-bms2pylontech/blob/master/Docs/CAN-Bus-protocol-PYLON-low-voltage-V1.2-20180408.pdf)
+circulates. The type differs from it in four places, each needed by, or taken from, the inverter it
+was tested with:
 
 - The temperature in frame `0x356` is sent in 0.01 °C steps. Pylontech's document says 0.1 °C, but a
   Growatt SPH reads the field in hundredths: 20.6 °C sent in tenths reads as 2 °C.
 - The discharge current limit in frame `0x351` is sent as a negative number.
-- The battery also sends frame `0x305` with a counter that goes up by one every cycle.
+- Frame `0x351` also carries the discharge voltage, in bytes 6 and 7.
+- The battery also sends frame `0x305`, with a counter that goes up by one every cycle. In
+  Pylontech's document `0x305` is the inverter's own frame.
 
 Other inverters that accept Pylontech batteries may read these fields differently. Check what the
 inverter reports for temperature and the current limits before you rely on it.
@@ -42,15 +47,14 @@ inverter reports for temperature and the current limits before you rely on it.
 ```yaml
 bms_emulator:
   - type: growatt_pylontech
-    canbus_id: inverter_can
     voltage_id: battery_voltage
     current_id: battery_current
     state_of_charge_id: battery_state_of_charge
     temperature_id: battery_temperature
-    charge_voltage: 55.0
-    discharge_voltage: 48.0
-    charge_current_limit: 100
-    discharge_current_limit: 100
+    charge_voltage: 55.0V
+    discharge_voltage: 48.0V
+    charge_current_limit: 100A
+    discharge_current_limit: 100A
 ```
 
 The four sensors can be any sensors in the configuration, for example values read from the
@@ -58,74 +62,85 @@ battery's own bus, or template sensors that combine several batteries.
 
 ## Configuration Variables
 
-- **id** (*Optional*, [ID](/guides/configuration-types#id)): the ID of this emulator, used by the
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): The ID of this emulator, used by the
   binary sensor below.
 
-- **type** (**Required**): the frame set to send. Only `growatt_pylontech` is supported.
+- **type** (**Required**): The frame set to send. Only `growatt_pylontech` is supported.
 
-- **canbus_id** (**Required**, [ID](/guides/configuration-types#id)): the [CAN Bus](/components/canbus/)
-  the inverter is on.
+- **canbus_id** (*Optional*, [ID](/guides/configuration-types#id)): The [CAN Bus](/components/canbus/)
+  the inverter is on. Needed only when there is more than one.
 
-- **voltage_id** (**Required**, [ID](/guides/configuration-types#id)): a sensor with the battery's
+- **voltage_id** (**Required**, [ID](/guides/configuration-types#id)): A sensor with the battery's
   voltage, in volts.
 
-- **current_id** (**Required**, [ID](/guides/configuration-types#id)): a sensor with the battery's
+- **current_id** (**Required**, [ID](/guides/configuration-types#id)): A sensor with the battery's
   current, in amperes: positive while it charges, negative while it discharges.
 
-- **state_of_charge_id** (**Required**, [ID](/guides/configuration-types#id)): a sensor with the
+- **state_of_charge_id** (**Required**, [ID](/guides/configuration-types#id)): A sensor with the
   battery's state of charge, in percent. It is sent as a whole number from 0 to 100.
 
-- **temperature_id** (**Required**, [ID](/guides/configuration-types#id)): a sensor with the
+- **temperature_id** (**Required**, [ID](/guides/configuration-types#id)): A sensor with the
   battery's temperature, in °C.
 
-- **state_of_health** (*Optional*, [templatable](/automations/templates/), float, 0 to 100): the
-  battery's state of health, in percent. Defaults to `100`.
+- **state_of_health** (*Optional*, [templatable](/automations/templates/), float, 0 to 100): The
+  battery's state of health, in percent. Defaults to `100`. A lambda that returns no number, such as
+  one reading a sensor that has not answered yet, is sent as `100`.
 
-- **charge_voltage** (**Required**, [templatable](/automations/templates/), float): the voltage the
-  inverter charges up to, in volts.
+- **charge_voltage** (**Required**, [templatable](/automations/templates/), voltage): The voltage the
+  inverter charges up to.
 
-- **discharge_voltage** (**Required**, [templatable](/automations/templates/), float): the lowest
-  voltage the inverter discharges down to, in volts.
+- **discharge_voltage** (**Required**, [templatable](/automations/templates/), voltage): The lowest
+  voltage the inverter discharges down to.
 
-- **charge_current_limit** (**Required**, [templatable](/automations/templates/), float): the
-  highest current the inverter may charge with, in amperes. `0` stops charging.
+- **charge_current_limit** (**Required**, [templatable](/automations/templates/), current): The
+  highest current the inverter may charge with. `0A` stops charging.
 
-- **discharge_current_limit** (**Required**, [templatable](/automations/templates/), float): the
-  highest current the inverter may take from the battery, in amperes. Give it as a positive number;
-  the component sends it with the sign the inverter expects.
+- **discharge_current_limit** (**Required**, [templatable](/automations/templates/), current): The
+  highest current the inverter may take from the battery. Give it as a positive number; the
+  component sends it with the sign the inverter expects.
 
-- **charge_enabled** (*Optional*, [templatable](/automations/templates/), boolean): whether the
+- **charge_enabled** (*Optional*, [templatable](/automations/templates/), boolean): Whether the
   battery accepts a charge. Defaults to `true`.
 
-- **discharge_enabled** (*Optional*, [templatable](/automations/templates/), boolean): whether the
+- **discharge_enabled** (*Optional*, [templatable](/automations/templates/), boolean): Whether the
   battery can be discharged. Defaults to `true`.
 
-- **module_count** (*Optional*, int, 1 to 255): the number of battery modules reported to the
+- **module_count** (*Optional*, int, 1 to 255): The number of battery modules reported to the
   inverter. Defaults to `1`.
 
-- **inverter_frame_id** (*Optional*, int, `0x0` to `0x7FF`): the frame the inverter sends, whose
+- **inverter_frame_id** (*Optional*, int, `0x0` to `0x7FF`): The frame the inverter sends, whose
   arrival shows that an inverter is on the bus. Defaults to `0x301`, which a Growatt SPH sends.
 
-- **inverter_timeout** (*Optional*, [Time](/guides/configuration-types#time)): how long the
+- **inverter_timeout** (*Optional*, [Time](/guides/configuration-types#time)): How long the
   inverter's frame may be missing before the inverter counts as gone. Defaults to `5s`.
 
-- **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): how often the frames
+- **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): How often the frames
   are sent. Defaults to `1s`.
 
 ## How It Behaves
 
-Every update, the component sends its frames one after another. If any of the four sensors has no
-value, for example because the battery's data has stopped arriving, it sends nothing at all. The
+Every update, the component sends its frames one after another. If any of the four sensors, or any
+of the voltages and current limits, has no value, it sends nothing at all. That happens when the
+battery's data has stopped arriving, or when a lambda reads a sensor that has not answered. The
 inverter then treats the battery as lost, as it would a real BMS that went quiet, instead of acting
-on old readings. Sending starts again as soon as all four sensors have a value, and each change is
+on old or guessed values. Sending starts again as soon as everything has a value, and each change is
 logged once.
 
 A value outside what a frame can carry is sent as the nearest value it can carry.
 
+If the CAN controller refuses a frame, the rest of that update is skipped. A refused frame usually
+means the controller's transmit queue is full, for example because nothing on the bus acknowledges
+what is sent, and each further frame would wait for the controller's timeout too. The next update
+starts over. On the ESP32's own controller, a `tx_queue_len` of at least `7` on the
+[CAN Bus](/components/canbus/esp32_can/) lets a whole update fit in the queue at once.
+
+The inverter's frame is checked at each update, so the inverter counts as gone at the first update
+after `inverter_timeout` has passed without it.
+
 ### Frames Sent by `growatt_pylontech`
 
-All frames use 11-bit identifiers and little-endian values. Voltages in `0x351` are in 0.1 V and currents in
-0.1 A.
+All frames use 11-bit identifiers and little-endian values. Voltages in `0x351` are in 0.1 V and
+currents in 0.1 A.
 
 | ID | Bytes | Contents |
 | --- | --- | --- |
@@ -156,6 +171,17 @@ bms_emulator:
     charge_enabled: !lambda "return !id(battery_fault).state;"
 ```
 
+Where the battery reports a value itself, a lambda passes it on. This takes the state of health and
+the charge current limit from two sensors read from the battery's own BMS:
+
+```yaml
+bms_emulator:
+  - type: growatt_pylontech
+    # ...
+    state_of_health: !lambda "return id(bms_state_of_health).state;"
+    charge_current_limit: !lambda "return id(bms_charge_current_limit).state;"
+```
+
 ## Binary Sensor
 
 ```yaml
@@ -165,12 +191,12 @@ binary_sensor:
       name: Inverter online
 ```
 
-- **bms_emulator_id** (*Optional*, [ID](/guides/configuration-types#id)): the emulator to report
+- **bms_emulator_id** (*Optional*, [ID](/guides/configuration-types#id)): The emulator to report
   on. Needed only when there is more than one.
 
-- **inverter_online** (*Optional*): on while the inverter's frame (see `inverter_frame_id`) keeps
-  arriving, and off once it has been missing for `inverter_timeout`. All options from
-  [Binary Sensor](/components/binary_sensor#config-binary_sensor).
+- **inverter_online** (*Optional*): On while the inverter's frame (see `inverter_frame_id`) keeps
+  arriving, and off from the first update after it has been missing for `inverter_timeout`. All
+  options from [Binary Sensor](/components/binary_sensor#config-binary_sensor).
 
 ## See Also
 
