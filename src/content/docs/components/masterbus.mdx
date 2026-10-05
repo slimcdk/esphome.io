@@ -584,9 +584,10 @@ Nothing is compiled in unless you configure the trigger.
 
 ## Configurations for known equipment
 
-Each section below is a paste-ready configuration for one kind of Mastervolt device. Change the
-`device:` address to your own — [Finding your equipment](#finding-your-equipment) prints it — and
-leave everything else as it stands.
+Each section below is a paste-ready configuration for one kind of Mastervolt device.
+[What is listed](#what-is-listed) is the overview; each product's configuration is folded away under
+its heading, so expand the one you need. Change the `device:` address to your own —
+[Finding your equipment](#finding-your-equipment) prints it — and leave everything else as it stands.
 
 **Field numbers are not standard across Mastervolt equipment.** The same number means different
 things on different products: field 9 is `AC Input` current on a MassCombi and `Time` on a shunt.
@@ -653,6 +654,9 @@ totals are read from any single block, and the per-block entities are repeated f
 
 ```yaml
 canbus:
+<details>
+<summary>Configuration for the lithium battery block</summary>
+
   - platform: esp32_can
     id: mb_can
     tx_pin: GPIO20
@@ -785,6 +789,8 @@ button:
 
 > [!WARNING]
 > Fields 117 and 119 operate the contactor that ties the block to the bank. Opening one
+</details>
+
 > disconnects a real battery, and nothing asks twice. Neither field reports the contactor's
 > position — the block's own current is the only evidence a command took effect. On the
 > installation this was measured on the blocks are paired and one contactor serves each pair:
@@ -799,6 +805,9 @@ Four groups: the state fields, the battery side, AC in and AC out.
 
 ```yaml
 masterbus:
+<details>
+<summary>Configuration for the MassCombi</summary>
+
   id: mb
   canbus_id: mb_can
   devices:
@@ -926,6 +935,8 @@ sensor:
 
 The state fields are lists, and their ranges say how long each list is: `Inverter` and `Power` and
 `Charger` run 0 to 2, `Mode` 0 to 5, `Load` 0 to 7, `State of charger` 0 to 7, `State` 0 to 9, and
+</details>
+
 `Shore fuse` 0 to 27. Individual entries seen on the wire include `Inverting`, `Standby`, `Auto`,
 `On`, `Off`, `No shore`, `5 %` and `18 A`.
 
@@ -935,6 +946,9 @@ out:
 
 ```yaml
 select:
+<details>
+<summary>The state fields as `select` entities</summary>
+
   - platform: masterbus
     masterbus_device_id: mb_combi
     param: 20
@@ -946,6 +960,8 @@ select:
 
 > [!WARNING]
 > `Inverter`, `Charger` and `Power` switch real equipment. An index the list does not cover
+</details>
+
 > publishes as unavailable and logs a warning; an index that lands on the wrong entry does
 > whatever that entry does.
 
@@ -957,6 +973,9 @@ One group, and the only device seen so far that carries a clock and a calendar.
 
 ```yaml
 masterbus:
+<details>
+<summary>Configuration for the DC shunt</summary>
+
   id: mb
   canbus_id: mb_can
   devices:
@@ -1032,6 +1051,8 @@ text_sensor:
 ```
 
 ## Hardware
+
+</details>
 
 Everything here is about getting an MCU physically onto the bus. None of it is specific to
 MasterBus's use of CAN — it is the same job as putting a board on any 250 kbit/s CAN segment, with
