@@ -5,7 +5,9 @@ sidebar:
   label: "MasterBus"
 ---
 
+import Figure from '@components/Figure.astro';
 import MasterbusScanConverter from '@components/MasterbusScanConverter.astro';
+import masterbusWiringImg from './images/masterbus_wiring.svg';
 
 Read and control Mastervolt equipment — battery blocks, chargers, inverters, displays — from
 ESPHome over a CAN transceiver.
@@ -138,7 +140,7 @@ transceiver with an SN65HVD230, avoid the problem.
 
 **The module already contains a transceiver.** The [Hardware](#hardware) section below is written
 around wiring a bare transceiver to an MCU's own CAN pins; with an MCP2515 module that part is done
-for you. Everything from [Finding CAN_H and CAN_L](#finding-can_h-and-can_l) onwards still applies
+for you. Everything from [The connector](#the-connector) onwards still applies
 — termination, grounding and the connector pinout do not care which controller you chose.
 
 > [!WARNING]
@@ -652,11 +654,11 @@ Blocks report twice: a **cluster** group carrying the bank as a whole, which eve
 with the same numbers, and a **battery** group carrying that one block's own readings. So the bank
 totals are read from any single block, and the per-block entities are repeated for each.
 
-```yaml
-canbus:
 <details>
 <summary>Configuration for the lithium battery block</summary>
 
+```yaml
+canbus:
   - platform: esp32_can
     id: mb_can
     tx_pin: GPIO20
@@ -787,10 +789,10 @@ button:
     name: BAT 1 close relay
 ```
 
-> [!WARNING]
-> Fields 117 and 119 operate the contactor that ties the block to the bank. Opening one
 </details>
 
+> [!WARNING]
+> Fields 117 and 119 operate the contactor that ties the block to the bank. Opening one
 > disconnects a real battery, and nothing asks twice. Neither field reports the contactor's
 > position — the block's own current is the only evidence a command took effect. On the
 > installation this was measured on the blocks are paired and one contactor serves each pair:
@@ -803,11 +805,11 @@ Answers `product` `8`.
 
 Four groups: the state fields, the battery side, AC in and AC out.
 
-```yaml
-masterbus:
 <details>
 <summary>Configuration for the MassCombi</summary>
 
+```yaml
+masterbus:
   id: mb
   canbus_id: mb_can
   devices:
@@ -933,10 +935,10 @@ sensor:
     update_interval: 30s
 ```
 
-The state fields are lists, and their ranges say how long each list is: `Inverter` and `Power` and
-`Charger` run 0 to 2, `Mode` 0 to 5, `Load` 0 to 7, `State of charger` 0 to 7, `State` 0 to 9, and
 </details>
 
+The state fields are lists, and their ranges say how long each list is: `Inverter` and `Power` and
+`Charger` run 0 to 2, `Mode` 0 to 5, `Load` 0 to 7, `State of charger` 0 to 7, `State` 0 to 9, and
 `Shore fuse` 0 to 27. Individual entries seen on the wire include `Inverting`, `Standby`, `Auto`,
 `On`, `Off`, `No shore`, `5 %` and `18 A`.
 
@@ -944,11 +946,11 @@ The component does not read the list itself, only the index — so to get a
 [`select`](#select) instead, take the entry order off your own equipment's display and write it
 out:
 
-```yaml
-select:
 <details>
 <summary>The state fields as `select` entities</summary>
 
+```yaml
+select:
   - platform: masterbus
     masterbus_device_id: mb_combi
     param: 20
@@ -958,10 +960,10 @@ select:
     options: ["Off", "On", "Standby"]
 ```
 
-> [!WARNING]
-> `Inverter`, `Charger` and `Power` switch real equipment. An index the list does not cover
 </details>
 
+> [!WARNING]
+> `Inverter`, `Charger` and `Power` switch real equipment. An index the list does not cover
 > publishes as unavailable and logs a warning; an index that lands on the wrong entry does
 > whatever that entry does.
 
@@ -971,11 +973,11 @@ Carries no `product` number: it refuses the question.
 
 One group, and the only device seen so far that carries a clock and a calendar.
 
-```yaml
-masterbus:
 <details>
 <summary>Configuration for the DC shunt</summary>
 
+```yaml
+masterbus:
   id: mb
   canbus_id: mb_can
   devices:
@@ -1050,13 +1052,24 @@ text_sensor:
     update_interval: 5min
 ```
 
-## Hardware
-
 </details>
+
+## Hardware
 
 Everything here is about getting an MCU physically onto the bus. None of it is specific to
 MasterBus's use of CAN — it is the same job as putting a board on any 250 kbit/s CAN segment, with
-one complication: the connector carries power as well, and its pinout is not published.
+one complication: the connector carries power as well, and Mastervolt does not publish its pinout.
+
+In order:
+
+1. Get the parts — [What you need](#what-you-need).
+2. Plug the breakout into a spare MasterBus port and identify the conductors —
+   [The connector](#the-connector), then [Checking the pair](#checking-the-pair).
+3. Decide whether the board may share a ground with the bus —
+   [Grounding and isolation](#grounding-and-isolation).
+4. Take the terminating resistor off the transceiver module — [Termination](#termination).
+5. Wire the transceiver to the MCU and to the bus — [Wiring the transceiver](#wiring-the-transceiver).
+6. Flash [the configuration to start from](#a-configuration-to-start-from) and read the scan.
 
 ### What you need
 
@@ -1073,14 +1086,39 @@ one complication: the connector carries power as well, and its pinout is not pub
   soldered.
 - **A multimeter.** Not optional — see below.
 
-### Finding CAN_H and CAN_L
+### The connector
+
+A MasterBus cable is an ordinary straight-through Ethernet patch cable in Mastervolt's own jacket
+colour: eight conductors in an RJ45 plug, with the usual Ethernet colour code inside. Four of them
+matter to a board on the bus.
+
+| Pin | Colour (T568B) | Carries | Connect to |
+|---|---|---|---|
+| 1 | orange/white | CAN_H | transceiver `CANH` |
+| 2 | orange | CAN_L | transceiver `CANL` |
+| 3 | green/white | ground | transceiver `GND` |
+| 4 | blue | +12 V | nothing, unless you [power the board](#powering-the-board) from it |
+| 5 | blue/white | +12 V | nothing |
+| 6 | green | ground | |
+| 7 | brown/white | not connected | |
+| 8 | brown | not connected | |
+
+The colours are those of a cable wired to T568B, which nearly every patch cable is. A cable wired to
+T568A has the orange and green pairs exchanged, so go by the pin number when in doubt.
+
+The table was measured on the installation this component was developed against: the CAN pair and
+its polarity on pins 1 and 2, and 12 V on the blue pair. An unrelated installation documented in the
+[masterbus-esp32](https://github.com/pmarches/masterbus-esp32) project found the same pinout, and
+pins 1 and 2 are also where CiA 303-1, the usual pinout for CAN on RJ45, puts CAN_H and CAN_L.
+
+### Checking the pair
 
 > [!CAUTION]
-> **Do not trust a pinout table you found online, including this one.** The MasterBus RJ45 pinout
-> is not published by Mastervolt. The community sources that do exist **disagree with each other**,
-> and the cable carries **+12 V**. Wiring a transceiver to the power pins destroys it.
+> **Check the table above against your own cable before you connect anything.** Mastervolt does not
+> publish the pinout, and the cable carries **+12 V** two pins away from the CAN pair. Wiring a
+> transceiver to the power pins destroys it.
 
-Identify the pair yourself, with the installation **powered down**:
+With the installation **powered down**:
 
 1. Measure resistance between conductors, pair by pair. The CAN pair reads about **60 Ω** — two
    terminators in parallel at the ends of the chain. Nothing else on the connector will read that.
@@ -1088,10 +1126,16 @@ Identify the pair yourself, with the installation **powered down**:
    CAN_H and CAN_L both idle near **2.5 V** relative to the bus ground, moving a volt or so apart
    when traffic flows.
 
-On the installation this component was developed against, the CAN pair turned out to be the
-**orange** and **orange/white** conductors. Yours may differ. Measure.
+If the 60 Ω pair is not on pins 1 and 2, trust the meter and not the table.
 
 ### Wiring the transceiver
+
+<Figure
+  src={masterbusWiringImg}
+  alt="Wiring diagram of a MasterBus RJ45 breakout connected to an ESP32 through an SN65HVD230 CAN transceiver"
+  caption="Pins 1, 2 and 3 of the MasterBus connector go to the transceiver; the rest stay unconnected."
+  layout="constrained"
+/>
 
 Three connections to the MCU, two to the bus, and the standby pin:
 
@@ -1100,9 +1144,9 @@ Three connections to the MCU, two to the bus, and the standby pin:
 | `CTX` / `TXD` | MCU CAN transmit pin | |
 | `CRX` / `RXD` | MCU CAN receive pin | |
 | `VCC` | MCU 3.3 V | not 5 V, for an SN65HVD230 |
-| `GND` | MCU ground **and** MasterBus ground | see [Grounding](#grounding-and-isolation) |
-| `CANH` | MasterBus CAN_H | the pair you measured |
-| `CANL` | MasterBus CAN_L | |
+| `GND` | MCU ground **and** MasterBus ground, pin 3 | see [Grounding](#grounding-and-isolation) |
+| `CANH` | MasterBus CAN_H, pin 1 | the pair you measured |
+| `CANL` | MasterBus CAN_L, pin 2 | |
 | `Rs` / `S` | **ground** | high-speed mode |
 
 Then name the two MCU pins in your `canbus:` block:
@@ -1166,8 +1210,9 @@ transceivers on one board bond both buses to each other through the MCU's ground
 
 ### Powering the board
 
-The MasterBus cable carries about 12 V, and it is tempting to run the MCU from it. Two things to
-weigh before you do:
+The MasterBus cable carries about 12 V, and it is tempting to run the MCU from it. That takes a
+step-down converter from 12 V to the board's own supply voltage; no ESP32 board takes 12 V on its
+3.3 V pin. Two things to weigh before you do:
 
 - It is the installation's supply, fused and budgeted for MasterBus devices. An ESP32 with WiFi
   draws short peaks of a few hundred milliamps, which is small but not nothing.

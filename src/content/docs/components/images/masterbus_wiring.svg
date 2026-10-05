@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 420" width="1000" height="420" font-family="Helvetica, Arial, sans-serif">
+<title>MasterBus to CAN transceiver to ESP32 wiring</title>
+<rect width="1000" height="420" fill="#ffffff"/>
+<path d="M250 110 H430" fill="none" stroke="#f08a1c" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M250 110 H430" fill="none" stroke="#ffffff" stroke-width="2" stroke-dasharray="7 7"/>
+<path d="M250 146 H430" fill="none" stroke="#f08a1c" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M250 182 H408 V330 H630 V146" fill="none" stroke="#2e9e4f" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M250 182 H408 V330 H630 V146" fill="none" stroke="#ffffff" stroke-width="2" stroke-dasharray="7 7"/>
+<path d="M600 110 H760" fill="none" stroke="#d93a3a" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M600 146 H760" fill="none" stroke="#1f2733" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M600 182 H760" fill="none" stroke="#8a4fd0" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M600 218 H760" fill="none" stroke="#0f9aa8" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="630" cy="146" r="5" fill="#1f2733"/>
+<text x="680" y="100.5" text-anchor="middle" font-size="12" fill="#5b6675">3.3 V</text>
+<text x="700" y="136.5" text-anchor="middle" font-size="12" fill="#5b6675">ground</text>
+<text x="680" y="172.5" text-anchor="middle" font-size="12" fill="#5b6675">transmit</text>
+<text x="680" y="208.5" text-anchor="middle" font-size="12" fill="#5b6675">receive</text>
+<text x="519" y="352.5" text-anchor="middle" font-size="12" fill="#5b6675">bus ground joins the board's ground</text>
+<rect x="40" y="80" width="210" height="312" rx="10" fill="#f4f6f9" stroke="#9aa6b6" stroke-width="1.6"/>
+<text x="145" y="54" text-anchor="middle" font-size="16" font-weight="700" fill="#1f2733">MasterBus</text>
+<text x="145" y="71" text-anchor="middle" font-size="12" fill="#5b6675">RJ45 breakout in a spare port</text>
+<text x="58" y="114.5" text-anchor="middle" font-size="13" font-weight="700" fill="#1f2733">1</text>
+<rect x="72" y="103" width="30" height="14" rx="3" fill="#f08a1c" stroke="#5b6675" stroke-width="0.8"/>
+<path d="M72 110 H102" stroke="#ffffff" stroke-width="4"/>
+<text x="110" y="114.5" text-anchor="start" font-size="12" fill="#5b6675">orange/white</text>
+<text x="236" y="114.5" text-anchor="end" font-size="13" font-weight="700" fill="#1f2733">CAN_H</text>
+<circle cx="250" cy="110" r="5.5" fill="#ffffff" stroke="#5b6675" stroke-width="1.6"/>
+<text x="58" y="150.5" text-anchor="middle" font-size="13" font-weight="700" fill="#1f2733">2</text>
+<rect x="72" y="139" width="30" height="14" rx="3" fill="#f08a1c" stroke="#5b6675" stroke-width="0.8"/>
+<text x="110" y="150.5" text-anchor="start" font-size="12" fill="#5b6675">orange</text>
+<text x="236" y="150.5" text-anchor="end" font-size="13" font-weight="700" fill="#1f2733">CAN_L</text>
+<circle cx="250" cy="146" r="5.5" fill="#ffffff" stroke="#5b6675" stroke-width="1.6"/>
+<text x="58" y="186.5" text-anchor="middle" font-size="13" font-weight="700" fill="#1f2733">3</text>
+<rect x="72" y="175" width="30" height="14" rx="3" fill="#2e9e4f" stroke="#5b6675" stroke-width="0.8"/>
+<path d="M72 182 H102" stroke="#ffffff" stroke-width="4"/>
+<text x="110" y="186.5" text-anchor="start" font-size="12" fill="#5b6675">green/white</text>
+<text x="236" y="186.5" text-anchor="end" font-size="13" font-weight="700" fill="#1f2733">GND</text>
+<circle cx="250" cy="182" r="5.5" fill="#ffffff" stroke="#5b6675" stroke-width="1.6"/>
+<text x="58" y="222.5" text-anchor="middle" font-size="13" font-weight="700" fill="#1f2733">4</text>
+<rect x="72" y="211" width="30" height="14" rx="3" fill="#2f6fd0" stroke="#5b6675" stroke-width="0.8"/>
+<text x="110" y="222.5" text-anchor="start" font-size="12" fill="#5b6675">blue</text>
+<text x="236" y="222.5" text-anchor="end" font-size="13" font-weight="700" fill="#8792a2">+12 V</text>
+<circle cx="250" cy="218" r="5.5" fill="#e3e7ed" stroke="#9aa6b6" stroke-width="1.6"/>
+<text x="58" y="258.5" text-anchor="middle" font-size="13" font-weight="700" fill="#1f2733">5</text>
+<rect x="72" y="247" width="30" height="14" rx="3" fill="#2f6fd0" stroke="#5b6675" stroke-width="0.8"/>
+<path d="M72 254 H102" stroke="#ffffff" stroke-width="4"/>
+<text x="110" y="258.5" text-anchor="start" font-size="12" fill="#5b6675">blue/white</text>
+<text x="236" y="258.5" text-anchor="end" font-size="13" font-weight="700" fill="#8792a2">+12 V</text>
+<circle cx="250" cy="254" r="5.5" fill="#e3e7ed" stroke="#9aa6b6" stroke-width="1.6"/>
+<text x="58" y="294.5" text-anchor="middle" font-size="13" font-weight="700" fill="#1f2733">6</text>
+<rect x="72" y="283" width="30" height="14" rx="3" fill="#2e9e4f" stroke="#5b6675" stroke-width="0.8"/>
+<text x="110" y="294.5" text-anchor="start" font-size="12" fill="#5b6675">green</text>
+<text x="236" y="294.5" text-anchor="end" font-size="13" font-weight="700" fill="#8792a2">GND</text>
+<circle cx="250" cy="290" r="5.5" fill="#e3e7ed" stroke="#9aa6b6" stroke-width="1.6"/>
+<text x="58" y="330.5" text-anchor="middle" font-size="13" font-weight="700" fill="#1f2733">7</text>
+<rect x="72" y="319" width="30" height="14" rx="3" fill="#8a5a33" stroke="#5b6675" stroke-width="0.8"/>
+<path d="M72 326 H102" stroke="#ffffff" stroke-width="4"/>
+<text x="110" y="330.5" text-anchor="start" font-size="12" fill="#5b6675">brown/white</text>
+<text x="236" y="330.5" text-anchor="end" font-size="13" font-weight="700" fill="#8792a2">n/c</text>
+<circle cx="250" cy="326" r="5.5" fill="#e3e7ed" stroke="#9aa6b6" stroke-width="1.6"/>
+<text x="58" y="366.5" text-anchor="middle" font-size="13" font-weight="700" fill="#1f2733">8</text>
+<rect x="72" y="355" width="30" height="14" rx="3" fill="#8a5a33" stroke="#5b6675" stroke-width="0.8"/>
+<text x="110" y="366.5" text-anchor="start" font-size="12" fill="#5b6675">brown</text>
+<text x="236" y="366.5" text-anchor="end" font-size="13" font-weight="700" fill="#8792a2">n/c</text>
+<circle cx="250" cy="362" r="5.5" fill="#e3e7ed" stroke="#9aa6b6" stroke-width="1.6"/>
+<path d="M266 208 h8 V372 h-8" fill="none" stroke="#9aa6b6" stroke-width="1.6"/>
+<text x="284" y="285.5" text-anchor="start" font-size="12" fill="#5b6675">pins 4 to 8:</text>
+<text x="284" y="303.5" text-anchor="start" font-size="12" fill="#5b6675">leave unconnected</text>
+<rect x="430" y="80" width="170" height="210" rx="10" fill="#f4f6f9" stroke="#9aa6b6" stroke-width="1.6"/>
+<text x="515" y="54" text-anchor="middle" font-size="16" font-weight="700" fill="#1f2733">CAN transceiver</text>
+<text x="515" y="71" text-anchor="middle" font-size="12" fill="#5b6675">SN65HVD230, 3.3 V</text>
+<circle cx="430" cy="110" r="5.5" fill="#ffffff" stroke="#5b6675" stroke-width="1.6"/>
+<text x="444" y="114.5" text-anchor="start" font-size="13" font-weight="700" fill="#1f2733">CANH</text>
+<circle cx="430" cy="146" r="5.5" fill="#ffffff" stroke="#5b6675" stroke-width="1.6"/>
+<text x="444" y="150.5" text-anchor="start" font-size="13" font-weight="700" fill="#1f2733">CANL</text>
+<circle cx="600" cy="110" r="5.5" fill="#ffffff" stroke="#5b6675" stroke-width="1.6"/>
+<text x="586" y="114.5" text-anchor="end" font-size="13" font-weight="700" fill="#1f2733">3V3</text>
+<circle cx="600" cy="146" r="5.5" fill="#ffffff" stroke="#5b6675" stroke-width="1.6"/>
+<text x="586" y="150.5" text-anchor="end" font-size="13" font-weight="700" fill="#1f2733">GND</text>
+<circle cx="600" cy="182" r="5.5" fill="#ffffff" stroke="#5b6675" stroke-width="1.6"/>
+<text x="586" y="186.5" text-anchor="end" font-size="13" font-weight="700" fill="#1f2733">CTX</text>
+<circle cx="600" cy="218" r="5.5" fill="#ffffff" stroke="#5b6675" stroke-width="1.6"/>
+<text x="586" y="222.5" text-anchor="end" font-size="13" font-weight="700" fill="#1f2733">CRX</text>
+<path d="M444 244 H586" stroke="#c9d0da" stroke-width="1"/>
+<text x="515" y="262.5" text-anchor="middle" font-size="12" fill="#5b6675">Rs tied to GND</text>
+<rect x="444" y="266" width="142" height="20" rx="10" fill="#fff3cd" stroke="#e0a800" stroke-width="1.2"/>
+<text x="515" y="280.5" text-anchor="middle" font-size="12" font-weight="700" fill="#6b4e00">120 Ω resistor removed</text>
+<rect x="760" y="80" width="200" height="210" rx="10" fill="#f4f6f9" stroke="#9aa6b6" stroke-width="1.6"/>
+<text x="860" y="54" text-anchor="middle" font-size="16" font-weight="700" fill="#1f2733">ESP32</text>
+<text x="860" y="71" text-anchor="middle" font-size="12" fill="#5b6675">powered over USB or its own supply</text>
+<circle cx="760" cy="110" r="5.5" fill="#ffffff" stroke="#5b6675" stroke-width="1.6"/>
+<text x="774" y="114.5" text-anchor="start" font-size="13" font-weight="700" fill="#1f2733">3V3</text>
+<circle cx="760" cy="146" r="5.5" fill="#ffffff" stroke="#5b6675" stroke-width="1.6"/>
+<text x="774" y="150.5" text-anchor="start" font-size="13" font-weight="700" fill="#1f2733">GND</text>
+<circle cx="760" cy="182" r="5.5" fill="#ffffff" stroke="#5b6675" stroke-width="1.6"/>
+<text x="774" y="186.5" text-anchor="start" font-size="13" font-weight="700" fill="#1f2733">tx_pin</text>
+<circle cx="760" cy="218" r="5.5" fill="#ffffff" stroke="#5b6675" stroke-width="1.6"/>
+<text x="774" y="222.5" text-anchor="start" font-size="13" font-weight="700" fill="#1f2733">rx_pin</text>
+<text x="946" y="186.5" text-anchor="end" font-size="12" fill="#5b6675">e.g. GPIO20</text>
+<text x="946" y="222.5" text-anchor="end" font-size="12" fill="#5b6675">e.g. GPIO21</text>
+<text x="860" y="262.5" text-anchor="middle" font-size="12" fill="#5b6675">any free pair of GPIOs,</text>
+<text x="860" y="280.5" text-anchor="middle" font-size="12" fill="#5b6675">named in the canbus: block</text>
+<rect x="660" y="308" width="300" height="94" rx="8" fill="#fff3cd" stroke="#e0a800" stroke-width="1.2"/>
+<text x="676" y="330" font-size="13" font-weight="700" fill="#6b4e00">No terminating resistor on the transceiver</text>
+<text x="676" y="350" font-size="12" fill="#6b4e00">Most modules ship with 120 Ω fitted across</text>
+<text x="676" y="368" font-size="12" fill="#6b4e00">CANH and CANL. Remove it: MasterBus is</text>
+<text x="676" y="386" font-size="12" fill="#6b4e00">already terminated at both ends.</text>
+</svg>
