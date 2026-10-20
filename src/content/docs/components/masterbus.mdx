@@ -255,14 +255,15 @@ equipment are short and repeat. A battery block reports three separate fields al
 **A field number only means something together with its tab.** Field 9 is `AC Input` current on a
 MassCombi's monitoring tab; the same number on another tab is another field entirely.
 
-Three of the four tabs can be read. The alarm tab cannot: its fields are reported so you can see
-what is there, and the converter leaves them out of the configuration. See [Tabs](#tabs).
+All four tabs can be read. Alarm and history values travel on message numbers taken from the
+vendor's own library and not yet watched on a bus, and the converter marks those entities with a
+comment. See [Tabs](#tabs).
 
 The bus does not report whether a field can be written, so the converter offers the read-only
 platform of a pair — a `sensor` where a `number` may be possible, a `binary_sensor` where a
 `switch` may be — and says in a comment what to change it to. A list field is the exception: it is
-offered as a `select` on the monitoring tab, because that is the only way to see an option by name
-rather than by number. The bus does not report the names themselves, so the converter writes
+offered as a `select`, because that is the only way to see an option by name rather than by
+number. The bus does not report the names themselves, so the converter writes
 placeholders in the device's own order for you to fill in.
 
 > [!TIP]
@@ -280,9 +281,8 @@ Every platform below accepts these, in addition to its own base schema:
 - **masterbus_device_id** (**Required**, [ID](/guides/configuration-types#id)): which device this
   field belongs to.
 - **param** (**Required**, hex int, `0x0`–`0xFFFF`): the field number.
-- **tab** (*Optional*, default `monitoring`): `monitoring`, `history` or `configuration`. Only
-  `monitoring` can be written. The alarm tab takes no entity, because nothing reads an alarm's
-  value yet; a scan still reports what is on it. See [Tabs](#tabs).
+- **tab** (*Optional*, default `monitoring`): `monitoring`, `alarm`, `history` or
+  `configuration`. See [Tabs](#tabs).
 - **value_type** (*Optional*): how to read the 32 bits the device sends. Each platform accepts only
   the types it can render, and defaults sensibly, so you rarely need to set this.
 - **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): see [Polling and
@@ -445,29 +445,24 @@ field's address, not a filter.
 | Tab | Read | Write |
 |---|---|---|
 | `monitoring` (default) | yes, measured | yes, measured |
-| `configuration` | yes, seen | no |
-| `history` | yes, derived | no |
-| `alarm` | no, and no entity | no |
+| `configuration` | yes, seen | yes, from the vendor library |
+| `history` | yes, from the vendor library | yes, from the vendor library |
+| `alarm` | yes, from the vendor library | yes, from the vendor library |
 
 **Measured** means frames of that shape were captured on a live bus and checked against what the
 vendor's own software reported for the same field. **Seen** means answers of that shape came back
 on a live bus and read sensibly — a display's own name, its message texts, a battery's charge
-thresholds — but were not compared with the vendor's software. **Derived** means the message number
-follows from the vendor's own ordering — seven of its twelve entries are pinned by captured traffic,
-and these follow the same sequence — but no answer on that tab has been seen. The payload is
-assumed to be monitoring's, a field number and a 32-bit float. An answer that is not that length is
-dropped rather than guessed at, so a wrong assumption shows up as a value that never arrives, not
-as a wrong reading.
+thresholds — but were not compared with the vendor's software. **From the vendor library** means the
+message numbers are the ones the vendor's own library uses for that tab, read out of the library
+itself, but no device has yet been watched answering one. Every tab carries a value the same way, a
+field number and 32 bits, and an answer that is not that length is dropped rather than guessed at.
+A wrong assumption therefore shows up as a value that never arrives, not as a wrong reading.
 
-The `alarm` tab is different in kind. The vendor gives every other tab a message for reading a
-value; for alarms it files that message with the broadcast messages instead, and its numbering is
-not known. So an alarm field can be discovered by a scan — its number, name, unit and range are all
-readable — and still not be readable as a value. An entity on the `alarm` tab is refused in
-configuration, because it could only ever sit unknown.
-
-Writing stays on `monitoring` alone. The write frame, and the second frame that must follow it,
-were captured on monitoring event fields and nowhere else. The configuration tab is exactly where a
-wrong frame would change a charger's voltage, so it waits for a write to be watched on that tab.
+Writing works the same way on every tab: the value goes out on the tab's own request number, then
+the hub's address on the next field number, which is how the vendor's own software writes. Only
+monitoring writes have been watched on a bus. The configuration tab is where a write changes a
+charger's voltage or a battery's limits, so check a setting against the equipment's own display
+after the first write to it.
 
 ## Polling and `update_interval`
 
@@ -1253,17 +1248,6 @@ Nothing at all is being received. Check the bit rate is `250kbps` first — it i
 common cause and the symptom is total silence rather than corruption. Then measure 60 Ω across
 CAN_H and CAN_L with the bus powered down. Then the wiring.
 
-### `the alarm tab cannot be read: ...`
-
-A configuration error, raised where an entity asks for the `alarm` tab. The tab can be discovered
-but not read, so there is nothing for such an entity to ask. A scan still reports what is on it.
-See [Tabs](#tabs).
-
-### `Cannot write field N on the … tab: only monitoring writes have been verified`
-
-Reading a tab and writing it are separate questions. Only `monitoring` writes have been captured
-and checked. See [Tabs](#tabs).
-
 ### `Wrote field N but could not send the frame that follows it`
 
 The value went out but the frame that must follow it did not, so the device may have taken the
@@ -1317,7 +1301,8 @@ produce interleaved half-lines that look like corruption but are not.
 
 ## Limitations
 
-- The `alarm` tab cannot be read, and nothing but `monitoring` can be written. See [Tabs](#tabs).
+- Only `monitoring` reads and writes have been watched on a bus. The other tabs use the message
+  numbers of the vendor's own library. See [Tabs](#tabs).
 - A list field reports its index, not its entry. To get names you supply the list yourself, in the
   device's own order.
 - This component does not read whether a field is writable, nor a device's article number, product
@@ -1346,7 +1331,7 @@ exists is other people's measurements, and this component's own.
   here, but the captures are real traffic from equipment this project does not have, and they are
   what confirmed three of the message numbers documented above.
 - `masterbus_protocol.h` in the component's own source. Every constant carries how far it is
-  actually known, marked VERIFIED or DERIVED, together with what was measured to establish it. It
+  actually known, marked VERIFIED, LIBRARY or UNVERIFIED, together with what established it. It
   is the authority when this page and the source disagree.
 - [CAN Bus](/components/canbus/) — the layer underneath, and where bit rate, mode and queue lengths
   are really configured.

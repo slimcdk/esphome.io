@@ -65,9 +65,9 @@
 <script is:inline>
   (function () {
     const TABS = { 0: "monitoring", 1: "alarm", 2: "history", 3: "configuration" };
-    // Whether a value on that tab can be read at all, and whether the message that reads it has
-    // been watched on a bus or only worked out from the vendor's own ordering.
-    const TAB_READABLE = { 0: "measured", 1: "none", 2: "derived", 3: "seen" };
+    // Whether the message that reads a value on that tab has been watched on a bus, or comes from
+    // the vendor's own library and has not.
+    const TAB_READABLE = { 0: "measured", 1: "library", 2: "library", 3: "seen" };
 
     // The vendor's display types. A field is only turned into an entity where its type says what
     // the value means, and anything new is left alone. 9 (device list) and 10 (event) answer with
@@ -75,8 +75,8 @@
     // so they are read as that index and nothing is written.
     const DISPLAY = {
       1: { platform: "sensor", writable: "number" },
-      2: { platform: "select", readOnly: "sensor", valueType: "list_option" },
-      3: { platform: "select", readOnly: "sensor", valueType: "list_option" },
+      2: { platform: "select", valueType: "list_option" },
+      3: { platform: "select", valueType: "list_option" },
       4: { platform: "binary_sensor", writable: "switch" },
       5: { platform: "button" },
       6: { platform: "text_sensor" },
@@ -86,7 +86,6 @@
       10: { platform: "sensor", valueType: "list_option" },
       11: { platform: "binary_sensor", writable: "switch" },
     };
-    const WRITES = new Set(["select", "button", "switch", "number"]);
 
     function parseLine(line) {
       const header = line.lastIndexOf("]: ");
@@ -222,26 +221,14 @@
           notes.push("# " + where + ", field " + field.param + ": the device did not say what this field is.");
           continue;
         }
-        if (TAB_READABLE[tab] === "none") {
-          notes.push("# " + where + ", field " + field.param + ": this tab's values cannot be read yet.");
-          continue;
-        }
         const display = DISPLAY[Number(field.display)];
         if (display === undefined) {
           notes.push("# " + where + ", field " + field.param + ": display type " + field.display + " is not mapped.");
           continue;
         }
 
-        // Only monitoring has ever been seen written, so elsewhere the read-only half is offered.
         const monitoring = tab === 0;
-        let platform = display.platform;
-        if (!monitoring && WRITES.has(platform)) {
-          if (display.readOnly === undefined) {
-            notes.push("# " + where + ", field " + field.param + ": only a monitoring field can be written.");
-            continue;
-          }
-          platform = display.readOnly;
-        }
+        const platform = display.platform;
 
         const interval = Number(field.display) === 1 ? "10s" : "5min";
         if (platform !== "button") slowest = Math.max(slowest, interval === "10s" ? 10 : 300);
@@ -276,10 +263,10 @@
           lines_out.push("    max_value: " + (field.max === undefined ? 100 : field.max));
           lines_out.push("    step: " + (field.step === undefined ? 1 : field.step));
         }
-        if (TAB_READABLE[tab] === "derived") {
-          lines_out.push("    # this tab's value message is worked out, not watched: check what it returns");
+        if (TAB_READABLE[tab] === "library") {
+          lines_out.push("    # this tab's value message comes from the vendor library, not a capture: check it");
         }
-        if (display.writable !== undefined && monitoring) {
+        if (display.writable !== undefined) {
           lines_out.push("    # to control it instead, change the platform to " + display.writable);
         }
 
