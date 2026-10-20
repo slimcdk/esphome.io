@@ -485,6 +485,11 @@ at exactly the configured interval.
 Writing works, and on real equipment it does real things. Three properties of the protocol are
 worth knowing before you wire a button into an automation.
 
+First, what goes on the wire: **every write is two frames.** The value goes to the field, and then
+the hub's own address goes to the next field number, recording which node set the field off. The
+vendor's own software always sends both, and so does this component. The hub speaks as
+`0x500001`, the vendor library's own address.
+
 **There is often no state to read back.** Fields like `Close relay` and `Open relay` are *events*:
 firing one sends the command, and reading the field afterwards always returns false. It reports the
 last command, not the contactor's position. The only evidence a command took effect is some other
@@ -530,12 +535,14 @@ Fires when nothing has been heard from the device for its `timeout`.
 
 Fires for any frame this component reads past without understanding. There are two kinds:
 
-- **A message type it cannot name.** The protocol has messages the vendor names and nobody here has
-  numbers for, and an alarm's value is one of them.
+- **A message nobody here reads.** Either a type the vendor's own library would refuse, or one it
+  accepts without looking inside: the bus message, `0x02`, and the bootloader's, `0x3D`, `0x1D` and
+  `0x2D`.
 - **A write that another node sent.** A write uses the same message as a read, six bytes instead of
-  two, and is followed by a four-byte frame. This hub never hears its own frames, so a write seen
-  here came from somewhere else: a device carrying out one of its events, or a button pressed on a
-  display panel. A value answer of any length other than six bytes is reported the same way.
+  two, and is followed by a second write to the next field number that carries the writer's
+  address. This hub never hears its own frames, so a write seen here came from somewhere else: a
+  device carrying out one of its events, or a button pressed on a display panel. A value answer of
+  any length other than six bytes is reported the same way.
 
 Reads and their answers, and the walks a display makes through a device's menus, are what a bus
 carries all day, and they never fire it.
@@ -555,7 +562,7 @@ masterbus:
 
 Three values are available: `x` is the payload as a `std::vector<uint8_t>`, `type` is the six-bit
 message type, and `device` is the 23-bit address in the frame. For a write that is the device
-written to; a write does not say who sent it.
+written to; the second frame of the pair carries the writer's address as its value.
 
 This is an instrument, not a feature. The only way to learn where an unnamed message sits, or what
 an event does on the wire, is to catch one. On a bus where nothing but polling happens it stays
@@ -1250,9 +1257,9 @@ CAN_H and CAN_L with the bus powered down. Then the wiring.
 
 ### `Wrote field N but could not send the frame that follows it`
 
-The value went out but the frame that must follow it did not, so the device may have taken the
-write, ignored it, or half-applied it. Read the field back before assuming anything. This is a
-transmit failure like any other — see error 2 above.
+The value went out but the frame that must follow it — the hub's address, written to the next field
+number — did not, so the device may have taken the write, ignored it, or half-applied it. Read the
+field back before assuming anything. This is a transmit failure like any other — see error 2 above.
 
 ### `Could not put the node request on the bus`
 
