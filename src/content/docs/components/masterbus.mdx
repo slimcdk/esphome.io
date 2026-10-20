@@ -218,16 +218,18 @@ masterbus:
   scan: true
 ```
 
-The scan sends a node request, then walks every group of every device that answers — on all four
-tabs — reading each field's number, display type, name, unit and range. It reports what each
-device answered, one line per device, one per group and one per field:
+The scan sends a node request, then asks every device that answers what it is and walks every one
+of its groups — on all four tabs — reading each field's number, display type, name, unit, range,
+factory setting and whether it takes a write. It reports what each device answered, one line per
+device, one per group and one per field:
 
 ```txt
 [I][masterbus.scan]: Scan found device 0x6D56EA
 [I][masterbus.scan]: Walking 7 devices across all four tabs for their fields.
-[I][masterbus.scan]: device device=0x6D56EA product=2
+[I][masterbus.scan]: device device=0x6D56EA product=2 article="66025000" name="BAT 1"
 [I][masterbus.scan]: group device=0x6D56EA tab=0 group=1 name="Battery"
-[I][masterbus.scan]: field device=0x6D56EA tab=0 group=1 param=139 display=1 name="Battery" unit="V" min=0 max=600 step=0.01
+[I][masterbus.scan]: field device=0x6D56EA tab=0 group=1 param=139 display=1 name="Battery" unit="V" min=0 max=52.8 step=0.01 factory=0 writable=0 eventable=0
+[I][masterbus.scan]: field device=0x6D56EA tab=0 group=1 param=117 display=5 name="Close relay" unit="" min=0 max=1 step=1 factory=0 writable=1 eventable=1
 ```
 
 Copy those lines into the converter below to get a configuration out of them. Log prefixes and
@@ -239,14 +241,21 @@ The lines carry only what the device reported: `tab` and `display` are the vendo
 and a key is simply absent where the device did not answer for it. A field with no `display` at
 all is one the device would not describe, and the converter leaves it out rather than guessing.
 
-**`product` is what each device says it is.** Every device is asked that one question before its
-fields are walked, and every unit of the same product answers it alike — the six lithium battery
-blocks on the installation this component was developed against all answer `2`. It is not the
-article number, and the bus does not spell the product out in words, so what the number is good for
-is finding your equipment in the list under [Configurations for known
-equipment](#configurations-for-known-equipment). Equipment that does not carry the question refuses
-it, which is why a `device` line sometimes arrives without a `product` on it. The line is printed
-either way, so a device that describes no fields at all still reaches your configuration.
+**The device line says what the equipment is.** `article` is the article number on its label, and
+`name` is the name the device carries — the one its display shows, which an installer may have
+chosen: the six identical battery blocks on the installation this component was developed against
+answer `BAT 1` to `BAT 6`. `product` is a number every unit of the same product answers alike; it
+is not the article number, but it groups identical equipment. The article number is how you find
+your equipment under [Configurations for known equipment](#configurations-for-known-equipment).
+Equipment that does not carry one of these leaves its key off, and the line is printed either way,
+so a device that describes no fields at all still reaches your configuration. The serial number is
+never asked for: it identifies one unit, and a scan is often pasted somewhere public.
+
+**`writable` and `eventable` are the device's own word** on what a field allows. A reading answers
+`writable=0`, a setting `writable=1`, and a button both. The converter picks the platform by it: a
+field the device calls writable becomes a `number`, `switch` or `select`, and one it calls
+read-only stays a `sensor` or `binary_sensor`. `factory` is the field's factory setting, which the
+converter notes beside a configuration-tab entity.
 
 The group name matters, and the converter carries it through as a comment: field names on this
 equipment are short and repeat. A battery block reports three separate fields all called
@@ -259,18 +268,18 @@ All four tabs can be read. Alarm and history values travel on message numbers ta
 vendor's own library and not yet watched on a bus, and the converter marks those entities with a
 comment. See [Tabs](#tabs).
 
-The bus does not report whether a field can be written, so the converter offers the read-only
-platform of a pair — a `sensor` where a `number` may be possible, a `binary_sensor` where a
-`switch` may be — and says in a comment what to change it to. A list field is the exception: it is
+Where a device does not answer `writable` — a scan from before it was reported, for one — the
+converter offers the read-only platform of a pair — a `sensor` where a `number` may be possible, a
+`binary_sensor` where a `switch` may be — and says in a comment what to change it to. A list field is the exception: it is
 offered as a `select`, because that is the only way to see an option by name rather than by
 number. The bus does not report the names themselves, so the converter writes
 placeholders in the device's own order for you to fill in.
 
 > [!TIP]
 > Scanning transmits, so it needs `mode: NORMAL`. On an installation of eight devices it reported
-> 513 fields across all four tabs of every group in about a hundred seconds — it asks a device how
-> many groups a tab holds rather than finding out by asking for one that is not there. Turn it off
-> again once you have your configuration.
+> 513 fields across all four tabs of every group in about three and a half minutes — it asks a
+> device how many groups a tab holds rather than finding out by asking for one that is not there.
+> Turn it off again once you have your configuration.
 
 ## Entities
 
@@ -501,9 +510,9 @@ was developed against, two battery blocks share one contactor: either one opens 
 the two closes it again. Correctly formed writes to the other block changed nothing at all, with no
 error anywhere.
 
-**Nothing on the bus says which fields are writable.** No read-only flag has been found among a
-field's properties, so a write to a field that does not take one looks exactly like a write that
-worked. A wrong `param` fails silently.
+**A field says whether it takes a write**, and a scan reports it as `writable`. A write to a field
+that does not take one still looks exactly like a write that worked — nothing comes back to say
+otherwise — so check the scan before wiring one up. A wrong `param` fails silently.
 
 This component therefore does not retry, does not publish optimistically, and does not decide which
 device to address on your behalf. Which device owns what is a property of your installation, not of
@@ -611,23 +620,27 @@ listed under `devices:`.
 
 ### What is listed
 
-A scan prints a `product` number for each device, and that number is how you find your equipment
-here — see [Finding your equipment](#finding-your-equipment).
+A scan prints each device's article number, the one on its label, and that is how you find your
+equipment here; the `product` number works too — see [Finding your
+equipment](#finding-your-equipment).
 
-| Product | `product` | Article number | Where the entry came from |
+| Product | Article number | `product` | Where the entry came from |
 |---|---|---|---|
-| [Lithium battery block](#lithium-battery-block) | `2` | 66025000 | measured on a live installation, in daily use |
-| [MassCombi inverter/charger](#masscombi-invertercharger) | `8` | not known | rebuilt from a 2022 capture, never run |
-| [DC shunt](#dc-shunt) | none | not known | rebuilt from a 2022 capture, never run |
+| [Lithium battery block](#lithium-battery-block) | 66025000 | `2` | measured on a live installation, in daily use |
+| [MassCombi inverter/charger](#masscombi-invertercharger) | not known | `8` | rebuilt from a 2022 capture, never run |
+| [DC shunt](#dc-shunt) | not known | none | rebuilt from a 2022 capture, never run |
 
 **Not every device carries a product number.** The DC shunt refuses the question outright — every
-one of the 25 times it was asked in the capture the entry was built from — and so does one device on
-the reference installation. A `device` line without a `product` on it is that, not a fault.
+one of the 25 times it was asked in the capture the entry was built from — and so does the Modbus
+interface on the reference installation. A `device` line without a `product` on it is that, not a
+fault.
 
-Two further numbers belong to equipment there is nothing to configure for: `11` is a MasterView
-panel, and `16` is a device that polls the bus and answers no monitoring field of its own.
+Some equipment has nothing to configure: a MasterView panel answers `product` `11`, a device that
+polls the bus and answers no monitoring field of its own answers `16`, and the "INT ModBus to MB"
+interface, article 77030800, answers no product number and reports only its own state.
 
-If your device answers a number that is not in the table, its entry is missing rather than wrong.
+If your device reports an article number that is not in the table, its entry is missing rather than
+wrong.
 
 ### Adding a product
 
@@ -636,8 +649,9 @@ The list grows by contribution, and an entry needs three things:
 1. **A scan of the one device**, pasted as it was logged: its `device` line, and the `group` and
    `field` lines that follow it. Those carry the field numbers, names, units and ranges, which is
    most of an entry already — the converter turns them into the YAML block.
-2. **What the equipment is**, off its label: the product name and the article number. The bus
-   reports neither, so this is the one part that cannot be read out of a capture.
+2. **What the equipment is**, as its label or manual names the model. The scan's `device` line
+   gives the article number and the name the device carries, but that name is often one an
+   installer chose, such as `BAT 1`, rather than the model.
 3. **Whether it was run.** Say whether the configuration was flashed and watched against the
    equipment's own display, or only rebuilt from a recording. An entry that was never run is still
    worth having, and readers need to know which kind they are looking at.
@@ -650,7 +664,7 @@ something that looks right in Home Assistant without editing it.
 
 ### Lithium battery block
 
-Answers `product` `2`, and reports its article number as 66025000 on the label.
+Reports `article` `66025000` and `product` `2`.
 
 Blocks report twice: a **cluster** group carrying the bank as a whole, which every block answers
 with the same numbers, and a **battery** group carrying that one block's own readings. So the bank
@@ -1312,12 +1326,10 @@ produce interleaved half-lines that look like corruption but are not.
   numbers of the vendor's own library. See [Tabs](#tabs).
 - A list field reports its index, not its entry. To get names you supply the list yourself, in the
   device's own order.
-- This component does not read whether a field is writable, nor a device's article number, product
-  name or serial number. The bus carries at least some of it — the vendor's own software reports an
-  article number, and names a "writeable" property — but which message carries what has not been
-  identified. What a scan does read is the `product` number a device answers for itself, which
-  groups identical equipment together without naming it. A device's status here comes from whether
-  it answers, not from what it reports.
+- A scan reads a device's article number and name and whether each field takes a write; entities do
+  not consult either at run time. The serial number is never read. A device's status here comes
+  from whether it answers, not from what it reports: where the vendor's own software takes its other
+  states from has not been found.
 - A CAN controller that goes bus-off never recovers on its own. This is a property of the
   underlying [CAN Bus](/components/canbus/) platform rather than of this component, but it is what
   a MasterBus node looks like when it dies: every entity unavailable, the bus itself healthy, and
