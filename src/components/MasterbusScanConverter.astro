@@ -114,7 +114,7 @@
     function parseLine(line) {
       const header = line.lastIndexOf("]: ");
       const body = (header === -1 ? line : line.slice(header + 3)).trim();
-      const kind = ["device", "group", "field", "option"].find(function (name) {
+      const kind = ["device", "group", "field", "option", "count"].find(function (name) {
         return body.startsWith(name + " ");
       });
       if (kind === undefined) return null;
@@ -153,6 +153,11 @@
 
     function deviceId(address) {
       return "mb_device_" + address.replace(/^0x/i, "").toUpperCase();
+    }
+
+    // A device address as the scan prints it, so that the same device is one key wherever it appears.
+    function address(text) {
+      return "0x" + parseInt(text, 16).toString(16).toUpperCase().padStart(6, "0");
     }
 
     function quote(text) {
@@ -226,7 +231,7 @@
       }
       const deviceNames = {};
       for (const device of announced) {
-        if (device.name !== undefined && device.name !== "") deviceNames[device.device] = device.name;
+        if (device.name !== undefined && device.name !== "") deviceNames[address(device.device)] = device.name;
       }
       const resolved = displayNames(fields, groupNames, deviceNames);
       const names = resolved.names;
@@ -241,10 +246,17 @@
       const fieldNames = {};
       for (const field of fields) {
         if (field.name !== undefined && field.name !== "")
-          fieldNames[field.device.toUpperCase() + "/" + field.param] = field.name;
+          fieldNames[address(field.device) + "/" + field.param] = field.name;
+      }
+      // A device's count 0x40 + n is the field number of its eventable n.
+      const eventables = {};
+      for (const count of lines.filter((entry) => entry.kind === "count")) {
+        const question = parseInt(count.q, 16);
+        if (question >= 0x40 && question <= 0x5f)
+          eventables[address(count.device) + "/" + (question - 0x40)] = count.value;
       }
       // What each entry of a list field is called: an option by its own name, a device-list entry by
-      // the device it names, an event entry by the field it watches on its source device. ESPHome
+      // the device it names, an event entry by the eventable field it commands on its device. ESPHome
       // wants the names unique, and the bus does not promise that.
       function entryNames(field) {
         const listed = (entries[fieldKey(field)] || []).filter(Boolean);
@@ -252,10 +264,12 @@
         return listed.map(function (entry) {
           let text;
           if (entry.entry !== undefined) {
-            text = deviceNames[entry.entry] || entry.entry;
-          } else if (entry.field !== undefined) {
-            const source = entry.source !== undefined ? entry.source.toUpperCase() : field.device.toUpperCase();
-            text = fieldNames[source + "/" + entry.field] || "field " + entry.field;
+            const named = address(entry.entry);
+            text = deviceNames[named] || named;
+          } else if (entry.eventable !== undefined) {
+            const source = entry.source !== undefined ? address(entry.source) : address(field.device);
+            const param = eventables[source + "/" + entry.eventable];
+            text = (param !== undefined && fieldNames[source + "/" + param]) || "eventable " + entry.eventable;
           } else {
             text = entry.name !== undefined && entry.name !== "" ? entry.name : "option " + entry.index;
           }
