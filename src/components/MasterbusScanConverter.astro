@@ -394,7 +394,9 @@
       const deviceNames = {};
       const articles = {};
       const classes = {};
+      const eventableCounts = {};
       for (const device of announced) {
+        if (device.eventables !== undefined) eventableCounts[address(device.device)] = Number(device.eventables);
         if (device.name !== undefined && device.name !== "") deviceNames[address(device.device)] = device.name;
         if (device.article !== undefined) articles[address(device.device)] = device.article;
         if (device.class !== undefined) classes[address(device.device)] = Number(device.class);
@@ -445,7 +447,17 @@
       // the device it names, an event entry by the eventable field it commands on its device. ESPHome
       // wants the names unique, and the bus does not promise that.
       function entryNames(field) {
-        const listed = (entries[fieldKey(field)] || []).filter(Boolean);
+        let listed = (entries[fieldKey(field)] || []).filter(Boolean);
+        // An event command picks one of its target's eventables by number, and a device may list
+        // fewer of them than it holds: a battery block listed one and was set to the second. Where
+        // the target says how many eventables it has, the command offers all of them.
+        const first = listed[0];
+        if (first !== undefined && first.eventable !== undefined && first.target !== undefined) {
+          const held = eventableCounts[address(first.target)];
+          if (held !== undefined && held > listed.length) {
+            listed = Array.from({ length: held }, (_, n) => ({ target: first.target, eventable: String(n) }));
+          }
+        }
         const seen = {};
         return listed.map(function (entry) {
           let text;

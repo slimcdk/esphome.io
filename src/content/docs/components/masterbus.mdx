@@ -303,7 +303,9 @@ with the `entry` device they name; an event command's with the `target` device t
 to and the `eventable` number on it, which that device's `count` lines turn into a field. The
 converter turns them into the option names a `select` or `text_sensor` shows: a display panel's
 `Event 1 target` lists `BAT 1` to `BAT 6`, and its `Event 1 command` lists `Close relay` and
-`Open relay`. A field whose device carries a longer form of its name adds
+`Open relay`. A device may list fewer commands than its target holds (a battery block listed only
+`Close relay` and was set to `Open relay`), so where the target's `device` line gives its
+`eventables`, the converter offers all of them. A field whose device carries a longer form of its name adds
 `long_name` (and `very_long_name`) where it says more than `name` does.
 
 `writable` and `eventable` are the device's own word on what a field allows. A reading answers
