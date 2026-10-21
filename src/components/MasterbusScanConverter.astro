@@ -111,6 +111,146 @@
       31: "system overview",
     };
 
+    // What the vendor's configuration tool, MasterAdjust, shows a device as: the picture its device
+    // tree picks for the article number, read out of the tool itself. A number not listed is one the
+    // tool has no picture of, not one that is wrong.
+    const PRODUCTS = {
+      "AC interface": [77031500],
+      "AC power analyser": [77031200],
+      "Alpha Pro 2": [45512000],
+      "Alpha Pro 3": [45513000],
+      "battery contactor interface": [77031700],
+      ChargeMaster: [
+        44010350, 44010500, 44010700, 44011000, 44020200, 44020300, 44020400, 44020600, 44020800, 44021000,
+      ],
+      "ChargeMaster Plus": [
+        44310750, 44310755, 44311000, 44311005, 44320400, 44320405, 44320600, 44320605, 44320805, 44321105,
+      ],
+      "ChargeMaster Plus 12/50": [44310355, 44310505, 44320205, 44320305],
+      "ChargeMaster, small cabinet": [44010250, 44020120],
+      CombiMaster: [
+        35012000, 35013000, 35022000, 35023000, 35510800, 35511000, 35511500, 35512000, 35513000, 35513500, 35522000,
+        35523000, 35523500, 35524500, 35545000,
+      ],
+      CS20TL: [131200150, 131200200, 131200300, 131210150, 131210200, 131210300],
+      "CS7.5": [131200070, 131200100, 131200120, 131210070, 131210100, 131210120],
+      CSDC: [131300200],
+      "CZone bridge": [77033000],
+      "DC interface": [77030500],
+      "DC switching": [77020400],
+      "digital input interface": [77030900],
+      distribution: [77020200],
+      "EasyView 5": [77010310],
+      "FireCAN interface": [77032400, 77032600],
+      "GPRS interface": [77031000],
+      GPX: [51410500, 51420500, 51440500],
+      "IntelliWeb gateway": [77034000],
+      "inverter interface": [77030700],
+      "LED 6": [77010030],
+      "Li-ion battery": [66010320, 66011250, 66020160, 66021250],
+      "Li-ion battery E 12/1200": [66011200],
+      "Li-ion battery Mk2": [66012500, 66015000, 66025000],
+      "Mac Plus": [81205100, 81205200, 81205300, 81205400],
+      "Mass charger": [
+        40010306, 40010606, 40010806, 40020156, 40020256, 40020506, 40020756, 40021006, 40031006, 40040256, 40040506,
+        40120756, 40720266,
+      ],
+      "Mass Combi": [77030475],
+      "Mass GI": [88000355],
+      "MasterBus interface": [77030100, 77070000],
+      "MasterBus repeater": [77031100],
+      MasterShunt: [77020100, 77020110, 77020115],
+      MasterSwitch: [55008005, 55008105, 55008205],
+      "MasterView Classic": [77010100],
+      "MasterView Easy": [77010300, 77010305],
+      "MasterView System": [77010400],
+      "MLI Mk3": [66012750, 66013000, 66015500, 66016000, 66025500, 66026000],
+      "Modbus interface": [77030800],
+      "NMEA 2000 interface": [77031800],
+      "power interrupter": [77031550],
+      "Quatro Combi": [26013500, 26024000, 26043500, 38013000, 38023500, 38343500, 38513000, 38523500],
+      "SBS interface": [77030460],
+      "SCM60 MPPT": [131906000],
+      SmartRemote: [77010500],
+      "Sunmaster QS": [131002000, 131003200, 131004300, 131006500, 131012000, 131013200, 131014300, 131016500],
+      "Sunmaster XL": [131103300, 131105000, 131110000, 131115000],
+      "switch interface": [77031300, 77031400],
+      "system panel": [77031900],
+      "tank level interface": [77030300],
+    };
+    const PRODUCT_RANGES = [
+      [131103300, 131103399, "Sunmaster XL"],
+      [131105000, 131105099, "Sunmaster XL"],
+      [131110000, 131110099, "Sunmaster XL"],
+      [131115000, 131115099, "Sunmaster XL"],
+    ];
+    const PRODUCT_BY_ARTICLE = {};
+    for (const name of Object.keys(PRODUCTS)) {
+      for (const article of PRODUCTS[name]) PRODUCT_BY_ARTICLE[article] = name;
+    }
+    function productName(article) {
+      const number = Number(article);
+      if (PRODUCT_BY_ARTICLE[number] !== undefined) return PRODUCT_BY_ARTICLE[number];
+      const range = PRODUCT_RANGES.find((entry) => number >= entry[0] && number <= entry[1]);
+      return range === undefined ? undefined : range[2];
+    }
+
+    // What a unit says a reading is, in the words Home Assistant uses.
+    const QUANTITIES = {
+      V: { word: "voltage", deviceClass: "voltage" },
+      A: { word: "current", deviceClass: "current" },
+      W: { word: "power", deviceClass: "power" },
+      "\u00b0C": { word: "temperature", deviceClass: "temperature" },
+      Hz: { word: "frequency", deviceClass: "frequency" },
+    };
+    const BATTERY_MONITORS = new Set([19, 27]);
+
+    // Equipment measured on a live installation, by article number: what to call the fields a scan
+    // reports, how often to read them, and what to know before using one. A field is taken over only
+    // where the scan matches on tab, group name, field number, name and unit, so a device in another
+    // role, on other firmware or in another display language falls back to what the scan says.
+    // "{device}" is the name the device carries. Each row: tab, group, field, name, unit, then the
+    // name to use, the update interval, the decimals to show and a note. A device states its own
+    // display step, which for a state of charge is a whole percent while the value carries more.
+    const RELAY_NOTE = "operates the contactor that ties the block to the bank: see Lithium battery block";
+    // A block's own readings, by field number: state of charge, voltage, current, capacity consumed,
+    // time remaining and temperature.
+    function ownBlock(group, params) {
+      return [
+        [0, group, params[0], "State of charge", "%", "{device} state of charge", "10s", 1],
+        [0, group, params[1], "Battery", "V", "{device} voltage", "10s"],
+        [0, group, params[2], "Battery", "A", "{device} current", "10s"],
+        [0, group, params[3], "Cap. consumed", "Ah", "{device} capacity consumed", "10s"],
+        [0, group, params[4], "Time remaining", "", "{device} time remaining", "1min"],
+        [0, group, params[5], "Battery", "\u00b0C", "{device} temperature", "10s"],
+        [0, group, 94, "Time", "", "{device} clock", "5min"],
+        [0, group, 95, "Date", "", "{device} date", "5min"],
+        [0, group, 117, "Close relay", "", "{device} close relay", undefined, undefined, RELAY_NOTE],
+        [0, group, 119, "Open relay", "", "{device} open relay", undefined, undefined, RELAY_NOTE],
+      ];
+    }
+    const KNOWN = {
+      66025000: {
+        section: "Lithium battery block",
+        fields: [
+          // The cluster master alone carries the bank, the mean of the blocks, and its own readings
+          // as a second group; every other block carries only its own, as fields 0 to 5.
+          [0, "Cluster", 0, "State of charge", "%", "Bank state of charge", "10s", 1],
+          [0, "Cluster", 1, "Battery", "V", "Bank voltage", "10s"],
+          [0, "Cluster", 2, "Battery", "A", "Bank current", "10s"],
+          [0, "Cluster", 3, "Cap. consumed", "Ah", "Bank capacity consumed", "10s"],
+          [0, "Cluster", 4, "Time remaining", "", "Bank time remaining", "1min"],
+          [0, "Cluster", 5, "Battery", "\u00b0C", "Bank temperature", "10s"],
+          [0, "Cluster", 168, "Stop charge", "", "Bank stop charge", "10s"],
+          ...ownBlock("Battery", [136, 139, 140, 138, 137, 141]),
+          // The master's own stop-charge field carries a name that is not its own.
+          [0, "Battery", 167, "A", "", "{device} stop charge", "10s"],
+          ...ownBlock("General", [0, 1, 2, 3, 4, 5]),
+          [0, "General", 167, "Stop charge", "", "{device} stop charge", "10s"],
+        ],
+      },
+    };
+
     function parseLine(line) {
       const header = line.lastIndexOf("]: ");
       const body = (header === -1 ? line : line.slice(header + 3)).trim();
@@ -166,23 +306,34 @@
 
     // ESPHome refuses two entities of one platform with the same name, and MasterBus names repeat:
     // a battery block reports three fields all called "Battery", and six identical blocks report
-    // the same names as each other. So a repeated name is told apart by its unit within one device,
-    // and by the device's address across several - the only identity the bus gives.
-    function displayNames(fields, groupNames, deviceNames) {
+    // the same names as each other. So within one device a repeated name is told apart by what it
+    // measures, and the same reading in two places by its group; across devices, by the device's
+    // own name or its address - the only identity the bus gives. A name in fixed is used as it is.
+    function displayNames(fields, groupNames, deviceNames, fixed) {
       const perDevice = {};
       for (const field of fields) {
+        if (fixed[fieldKey(field)] !== undefined) continue;
         const base = fieldBase(field);
         perDevice[field.device] = perDevice[field.device] || {};
-        perDevice[field.device][base] = (perDevice[field.device][base] || 0) + 1;
+        perDevice[field.device][base] = perDevice[field.device][base] || [];
+        perDevice[field.device][base].push(field);
       }
 
       const label = {};
       const wearers = {};
       for (const field of fields) {
+        if (fixed[fieldKey(field)] !== undefined) continue;
         const base = fieldBase(field);
+        const repeats = perDevice[field.device][base];
         let text = base;
-        if (perDevice[field.device][base] > 1) {
-          text = field.unit ? base + " (" + field.unit + ")" : base + " " + field.param;
+        if (repeats.length > 1) {
+          const unit = field.unit || "";
+          const alike = repeats.filter((other) => (other.unit || "") === unit).length;
+          const group = groupNames[field.device + "/" + field.tab + "/" + field.group];
+          if (alike > 1 && group && group !== base) text = group + " " + text;
+          if (alike < repeats.length && unit !== "") {
+            text += " " + (QUANTITIES[unit] !== undefined ? QUANTITIES[unit].word : "(" + unit + ")");
+          }
         }
         label[fieldKey(field)] = text;
         wearers[text] = wearers[text] || [];
@@ -193,8 +344,8 @@
       const taken = {};
       let prefixed = false;
       for (const field of fields) {
-        let text = label[fieldKey(field)];
-        if (wearers[text].length > 1) {
+        let text = fixed[fieldKey(field)] !== undefined ? fixed[fieldKey(field)] : label[fieldKey(field)];
+        if (fixed[fieldKey(field)] === undefined && wearers[text].length > 1) {
           // The name the device carries where it has one, its address where it does not.
           text = (deviceNames[field.device] || field.device.replace(/^0x/i, "").toUpperCase()) + " " + text;
           prefixed = true;
@@ -206,6 +357,17 @@
         names[fieldKey(field)] = text;
       }
       return { names: names, prefixed: prefixed };
+    }
+
+    function seconds(interval) {
+      const amount = parseFloat(interval);
+      return interval.endsWith("min") ? amount * 60 : amount;
+    }
+
+    // How many decimals a step has, which is how many a reading needs.
+    function decimals(step) {
+      const point = String(step).indexOf(".");
+      return point === -1 ? 0 : String(step).length - point - 1;
     }
 
     function fieldBase(field) {
@@ -230,10 +392,34 @@
         groupNames[group.device + "/" + group.tab + "/" + group.group] = group.name;
       }
       const deviceNames = {};
+      const articles = {};
+      const classes = {};
       for (const device of announced) {
         if (device.name !== undefined && device.name !== "") deviceNames[address(device.device)] = device.name;
+        if (device.article !== undefined) articles[address(device.device)] = device.article;
+        if (device.class !== undefined) classes[address(device.device)] = Number(device.class);
       }
-      const resolved = displayNames(fields, groupNames, deviceNames);
+      // What is known of a field from equipment measured before, where the scan matches it.
+      const overlays = {};
+      const fixed = {};
+      for (const field of fields) {
+        const known = KNOWN[Number(articles[address(field.device)])];
+        if (known === undefined) continue;
+        const group = groupNames[field.device + "/" + field.tab + "/" + field.group];
+        const row = known.fields.find(
+          (entry) =>
+            entry[0] === Number(field.tab) &&
+            entry[1] === group &&
+            entry[2] === Number(field.param) &&
+            entry[3] === (field.name || "") &&
+            entry[4] === (field.unit || ""),
+        );
+        if (row === undefined) continue;
+        const owner = deviceNames[address(field.device)] || address(field.device);
+        fixed[fieldKey(field)] = row[5].replace("{device}", owner);
+        overlays[fieldKey(field)] = { interval: row[6], decimals: row[7], note: row[8] };
+      }
+      const resolved = displayNames(fields, groupNames, deviceNames, fixed);
       const names = resolved.names;
 
       // A list field's entries, from the option lines that follow it in the scan.
@@ -286,8 +472,14 @@
         // class its address puts it in. Older scans carry no class; any of the three may be missing.
         const parts = [];
         if (device.name !== undefined && device.name !== "") parts.push(device.name);
-        if (device.article !== undefined && device.article !== "") parts.push("article " + device.article);
+        if (device.article !== undefined && device.article !== "") {
+          parts.push("article " + device.article);
+          const product = productName(device.article);
+          if (product !== undefined) parts.push(product + " in MasterAdjust");
+        }
         if (device.class !== undefined) parts.push(CLASSES[Number(device.class)] || "class " + device.class);
+        const known = KNOWN[Number(device.article)];
+        if (known !== undefined) parts.push('names from "' + known.section + '" on this page');
         if (parts.length > 0) identities[device.device] = parts.join(", ");
       }
       const blocks = {};
@@ -320,8 +512,9 @@
         }
 
         // A reading changes by the second; a setting or a history count hardly at all.
-        const interval = Number(field.display) === 1 && monitoring ? "10s" : "5min";
-        if (platform !== "button") slowest = Math.max(slowest, interval === "10s" ? 10 : 300);
+        const overlay = overlays[fieldKey(field)] || {};
+        const interval = overlay.interval || (Number(field.display) === 1 && monitoring ? "10s" : "5min");
+        if (platform !== "button") slowest = Math.max(slowest, seconds(interval));
 
         const lines_out = [];
         lines_out.push("  - platform: masterbus");
@@ -336,6 +529,27 @@
         }
         if (field.unit !== undefined && field.unit !== "" && (platform === "sensor" || platform === "number")) {
           lines_out.push("    unit_of_measurement: " + quote(field.unit));
+          // What the unit says the value is; a percentage is a battery's charge only on a battery
+          // monitor and only from 0 to 100, which a display panel's backlight is not.
+          const quantity = QUANTITIES[field.unit];
+          const charge =
+            field.unit === "%" &&
+            field.min === "0" &&
+            field.max === "100" &&
+            BATTERY_MONITORS.has(classes[address(field.device)]);
+          if (quantity !== undefined) lines_out.push("    device_class: " + quantity.deviceClass);
+          else if (charge) lines_out.push("    device_class: battery");
+          if (platform === "sensor" && monitoring) lines_out.push("    state_class: measurement");
+        }
+        if (platform === "sensor" && field.step !== undefined && Number(field.step) > 0) {
+          lines_out.push(
+            "    accuracy_decimals: " + (overlay.decimals !== undefined ? overlay.decimals : decimals(field.step)),
+          );
+        }
+        // Settings and the alarm and history tabs are not what a dashboard shows first.
+        if (!monitoring) {
+          const setting = WRITABLE_PLATFORMS.has(platform) || platform === "button";
+          lines_out.push("    entity_category: " + (setting ? "config" : "diagnostic"));
         }
         if (LIST_TYPES.has(display.valueType)) {
           let options = entryNames(field);
@@ -365,6 +579,7 @@
         if (tab === 3 && field.factory !== undefined) {
           lines_out.push("    # factory setting: " + field.factory);
         }
+        if (overlay.note !== undefined) lines_out.push("    # " + overlay.note);
 
         const groupName = groupNames[field.device + "/" + field.tab + "/" + field.group];
         const heading = "  # " + where + (groupName ? ": " + groupName : "");
