@@ -33,6 +33,11 @@ pins, flash, and read the log. It transmits one broadcast, lists every device th
 prints the configuration for what it finds.
 
 ```yaml
+esphome:
+  name: masterbus-scan
+  on_boot:
+    - masterbus.scan:
+
 esp32:
   board: esp32dev
   framework:
@@ -57,11 +62,10 @@ canbus:
 masterbus:
   id: mb
   canbus_id: mb_can
-  scan: true
 ```
 
-Turn `scan` off again once you have what you need. Then add `devices:` and the entities the scan
-printed.
+Take the scan out of `on_boot` again once you have what you need. Then add `devices:` and the
+entities the scan printed.
 
 If your equipment is one of the products listed under
 [Configurations for known equipment](#configurations-for-known-equipment), you can take the entity
@@ -170,10 +174,6 @@ masterbus:
   requests and after a write to an event. The default is the vendor library's own. Give a second hub on the
   same bus an address of its own; it needs a device class in its top five bits, like every
   MasterBus address, and must not be one of your devices'.
-- **scan** (*Optional*, boolean, default `false`): scan the bus at boot: ask every device to
-  announce itself and print what each one answers, for the converter. To scan only when you ask,
-  use the [`masterbus.scan`](#masterbus-scan-action) action instead. See [Finding your
-  equipment](#finding-your-equipment).
 - **log_all_frames** (*Optional*, boolean, default `false`): log every MasterBus frame at DEBUG,
   with the message type and address already decoded. For protocol work, not for normal use.
 - **node_request_interval** (*Optional*, [Time](/guides/configuration-types#time), at least `1s`):
@@ -217,13 +217,14 @@ masterbus:
 
 ## Finding your equipment
 
-You do not need to know your addresses in advance. Set `scan: true`, flash, and read the log, or
-start a scan whenever you like with the [`masterbus.scan`](#masterbus-scan-action) action:
+You do not need to know your addresses in advance. Start a scan with the
+[`masterbus.scan`](#masterbus-scan-action) action, at boot or from a button, flash, and read the
+log:
 
 ```yaml
-masterbus:
-  canbus_id: mb_can
-  scan: true
+esphome:
+  on_boot:
+    - masterbus.scan:
 ```
 
 The scan sends a node request, then asks every device that answers what it is and walks every one
@@ -344,8 +345,8 @@ numbered placeholders, in the device's own order, for you to rename.
 > [!TIP]
 > Scanning transmits, so it needs `mode: NORMAL`. On an installation of eight devices it reported
 > 513 fields and 1137 list entries across all four tabs in about five minutes. It asks a device
-> how many groups a tab holds rather than finding out by asking for one that is not there. Turn it
-> off again once you have your configuration.
+> how many groups a tab holds rather than finding out by asking for one that is not there. Take it
+> out of `on_boot` once you have your configuration; a button keeps one at hand.
 
 ## Entities
 
@@ -706,8 +707,8 @@ Nothing is compiled in unless you configure the trigger.
 
 ### `masterbus.scan` Action
 
-Starts a scan: the same one `scan: true` runs at boot, at any time you choose. A button in Home
-Assistant is the usual way to start one.
+Starts a scan. In `on_boot` it scans at every start, which is how a first look at a bus is taken;
+from a button in Home Assistant it scans whenever you press it.
 
 ```yaml
 button:
@@ -723,8 +724,7 @@ button:
 The scan asks the devices to announce themselves, waits ten seconds, and then walks every device
 that answered, which takes minutes on a real installation. Started again before that wait is over,
 it starts the wait afresh; started while a walk is running, it logs a warning and does nothing.
-Using the action compiles the scan in without `scan: true`, so a configuration can keep it at hand
-without scanning on every boot.
+The scan is compiled in only where a configuration uses the action.
 
 ## Configurations for known equipment
 
