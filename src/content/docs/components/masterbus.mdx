@@ -9,7 +9,7 @@ import Figure from '@components/Figure.astro';
 import MasterbusScanConverter from '@components/MasterbusScanConverter.astro';
 import masterbusWiringImg from './images/masterbus_wiring.svg';
 
-Read and control Mastervolt equipment — battery blocks, chargers, inverters, displays — from
+Read and control Mastervolt equipment (battery blocks, chargers, inverters, displays) from
 ESPHome over a CAN transceiver.
 
 MasterBus is a closed protocol running at 250 kbit/s on CAN. The wire format used here was
@@ -107,8 +107,8 @@ There is **no I2C or UART CAN platform** in ESPHome. If your board has no CAN pe
 an MCP2515 is the route.
 
 The MCP2515 is a full CAN 2.0B controller, so it handles everything MasterBus needs: 250 kbit/s is
-available on all four supported crystal frequencies, and extended identifiers — which every
-MasterBus message uses — are supported in both directions.
+available on all four supported crystal frequencies, and extended identifiers, which every
+MasterBus message uses, are supported in both directions.
 
 ```yaml
 spi:
@@ -128,27 +128,27 @@ canbus:
 
 Three things catch people out:
 
-**The `clock` must match the crystal actually fitted to your module**, not what the listing said.
+The `clock` must match the crystal actually fitted to your module, not what the listing said.
 Boards ship with 8 MHz and 16 MHz crystals and look identical; the part is marked on the can. Get
 it wrong and the bit rate is wrong by the same ratio, which looks like a dead bus rather than like
 a misconfiguration.
 
-**Most cheap MCP2515 modules are 5 V parts.** They pair the controller with a TJA1050 or MCP2551
+Most cheap MCP2515 modules are 5 V parts. They pair the controller with a TJA1050 or MCP2551
 transceiver and expect 5 V logic. On a 3.3 V MCU the SPI lines need level shifting, and the
 transceiver itself will not run from 3.3 V. Modules sold as 3.3 V, or ones where you replace the
 transceiver with an SN65HVD230, avoid the problem.
 
-**The module already contains a transceiver.** The [Hardware](#hardware) section below is written
+The module already contains a transceiver. The [Hardware](#hardware) section below is written
 around wiring a bare transceiver to an MCU's own CAN pins; with an MCP2515 module that part is done
-for you. Everything from [The connector](#the-connector) onwards still applies
-— termination, grounding and the connector pinout do not care which controller you chose.
+for you. Everything from [The connector](#the-connector) onwards still applies: termination,
+grounding and the connector pinout do not care which controller you chose.
 
 > [!WARNING]
-> **The MCP2515 holds only two received frames.** ESPHome polls it from the main loop rather than
+> The MCP2515 holds only two received frames. ESPHome polls it from the main loop rather than
 > using its interrupt pin, and empties both buffers on each pass. On a quiet bus that is ample. A
 > MasterBus carrying around 200 frames a second delivers one every five milliseconds, so two slots
 > is a thin margin against a main loop that can take ten milliseconds or more when something else
-> is busy — and anything arriving while both are full is lost. By comparison `esp32_can` buffers in
+> is busy, and anything arriving while both are full is lost. By comparison `esp32_can` buffers in
 > software, and `rx_queue_len: 32` holds well over a hundred milliseconds of the same traffic.
 >
 > Lost frames degrade freshness rather than break anything: a missed answer is asked for again on
@@ -167,11 +167,12 @@ masterbus:
 - **canbus_id** (**Required**, [ID](/guides/configuration-types#id)): the
   [CAN Bus](/components/canbus/) component to listen on.
 - **address** (*Optional*, int, default `0x500001`): the address the hub speaks as, in its node
-  requests and after every write. The default is the vendor library's own. Give a second hub on the
+  requests and after a write to an event. The default is the vendor library's own. Give a second hub on the
   same bus an address of its own; it needs a device class in its top five bits, like every
   MasterBus address, and must not be one of your devices'.
-- **scan** (*Optional*, boolean, default `false`): ask every device on the bus to announce itself
-  at boot and print a pasteable configuration. See [Finding your
+- **scan** (*Optional*, boolean, default `false`): scan the bus at boot: ask every device to
+  announce itself and print what each one answers, for the converter. To scan only when you ask,
+  use the [`masterbus.scan`](#masterbus-scan-action) action instead. See [Finding your
   equipment](#finding-your-equipment).
 - **log_all_frames** (*Optional*, boolean, default `false`): log every MasterBus frame at DEBUG,
   with the message type and address already decoded. For protocol work, not for normal use.
@@ -216,7 +217,8 @@ masterbus:
 
 ## Finding your equipment
 
-You do not need to know your addresses in advance. Set `scan: true`, flash, and read the log:
+You do not need to know your addresses in advance. Set `scan: true`, flash, and read the log, or
+start a scan whenever you like with the [`masterbus.scan`](#masterbus-scan-action) action:
 
 ```yaml
 masterbus:
@@ -225,7 +227,7 @@ masterbus:
 ```
 
 The scan sends a node request, then asks every device that answers what it is and walks every one
-of its groups — on all four tabs — reading each field's number, display type, name, unit, range,
+of its groups on all four tabs, reading each field's number, display type, name, unit, range,
 factory setting and whether it takes a write, and for a list field what each entry is. It reports
 what each device answered, one line per device, one per group, one per field and one per list
 entry:
@@ -256,9 +258,9 @@ The lines carry only what the device reported: `tab` and `display` are the vendo
 and a key is simply absent where the device did not answer for it. A field with no `display` at
 all is one the device would not describe, and the converter leaves it out rather than guessing.
 
-**The device line says what the equipment is.** `article` is the article number on its label,
+The device line says what the equipment is. `article` is the article number on its label,
 `serial` the serial number of that one unit, `revision` its revision code, `firmware` the software
-version of each of its processors — a battery block has two — and `name` is the name the device
+version of each of its processors (a battery block has two), and `name` is the name the device
 carries, the one its display shows, which an installer may have chosen: the six identical battery
 blocks on the installation this component was developed against answer `BAT 1` to `BAT 6`.
 `class` is the kind of equipment, which a MasterBus device carries in the top five bits of its own
@@ -285,16 +287,16 @@ describes no fields at all still reaches your configuration.
 > The serial number identifies your unit, and the line carries it. Take it out before pasting a scan
 > somewhere public; the converter does not need it and leaves it out of the configuration.
 
-**`count` lines** follow each device line: every count the vendor's own software asks a device
+`count` lines follow each device line: every count the vendor's own software asks a device
 for, by its number `q`, with the value the device gave. Some point at a field: `0x40` plus n is
-the field number of the device's eventable n — on a battery block `0x40` is field 117,
-`Close relay`, and `0x41` field 119, `Open relay` — and the converter uses those to name an
+the field number of the device's eventable n. On a battery block `0x40` is field 117,
+`Close relay`, and `0x41` field 119, `Open relay`, and the converter uses those to name an
 event's entries. `0x22`, `0x24` and `0x25` are the field numbers of the device's language, clock and
-calendar. The rest mean only what the vendor calls them — `0x0B` the software version, `0x1C`-`0x1F`
-the versions of the device's menus, `0x20` and `0x21` its alarms — and are there for anyone working
+calendar. The rest mean only what the vendor calls them (`0x0B` the software version, `0x1C`-`0x1F`
+the versions of the device's menus, `0x20` and `0x21` its alarms) and are there for anyone working
 out more of the protocol.
 
-**`option` lines** follow a list field, one per entry, and a list holds as many entries as the
+`option` lines follow a list field, one per entry, and a list holds as many entries as the
 field's `max`. A radio or dropdown field's options come with their `name`; a device list's entries
 with the `entry` device they name; an event command's with the `target` device the event is sent
 to and the `eventable` number on it, which that device's `count` lines turn into a field. The
@@ -303,7 +305,7 @@ converter turns them into the option names a `select` or `text_sensor` shows: a 
 `Open relay`. A field whose device carries a longer form of its name adds
 `long_name` (and `very_long_name`) where it says more than `name` does.
 
-**`writable` and `eventable` are the device's own word** on what a field allows. A reading answers
+`writable` and `eventable` are the device's own word on what a field allows. A reading answers
 `writable=0`, a setting `writable=1`, and a button both. The converter picks the platform by it: a
 field the device calls writable becomes a `number`, `switch` or `select`, and one it calls
 read-only stays a `sensor` or `binary_sensor`. `factory` is the field's factory setting, which the
@@ -311,12 +313,12 @@ converter notes beside a configuration-tab entity.
 
 The group name matters, and the converter carries it through as a comment: field names on this
 equipment are short and repeat. A battery block reports three separate fields all called
-`Battery` — voltage, current and temperature. The converter tells a repeated name apart by what
+`Battery`: voltage, current and temperature. The converter tells a repeated name apart by what
 the field measures (`Battery voltage`) and, where the same reading appears in two groups, by the
 group.
 
-**The converter adds what a scan implies.** A unit gives the `device_class` — voltage, current,
-power, temperature, frequency — and a percentage from 0 to 100 on a battery monitor is a
+The converter adds what a scan implies. A unit gives the `device_class` (voltage, current,
+power, temperature, frequency), and a percentage from 0 to 100 on a battery monitor is a
 battery's charge, which a display panel's backlight is not. Monitoring readings get
 `state_class: measurement`, and their decimals follow the device's own step. Settings get
 `entity_category: config`, and the rest of the configuration, alarm and history tabs `diagnostic`,
@@ -325,23 +327,23 @@ vendor's configuration tool shows it, by article number, and for equipment liste
 [Configurations for known equipment](#configurations-for-known-equipment) the converter takes that
 section's names, intervals and notes for every field the scan matches.
 
-**A field number only means something together with its tab.** Field 9 is `AC Input` current on a
+A field number only means something together with its tab. Field 9 is `AC Input` current on a
 MassCombi's monitoring tab; the same number on another tab is another field entirely.
 
 All four tabs can be read. Alarm and history values travel on message numbers taken from the
 vendor's own library and not yet watched on a bus, and the converter marks those entities with a
 comment. See [Tabs](#tabs).
 
-Where a device does not answer `writable` — a scan from before it was reported, for one — the
-converter offers the read-only platform of a pair — a `sensor` where a `number` may be possible, a
-`binary_sensor` where a `switch` may be — and says in a comment what to change it to. A list field
+Where a device does not answer `writable`, as in a scan from before it was reported, the
+converter offers the read-only platform of a pair (a `sensor` where a `number` may be possible, a
+`binary_sensor` where a `switch` may be) and says in a comment what to change it to. A list field
 becomes a `text_sensor` showing the entry by name, or a `select` where the device says it takes a
 write, with the names the scan's `option` lines carry. A scan from before those lines gives it
 numbered placeholders, in the device's own order, for you to rename.
 
 > [!TIP]
 > Scanning transmits, so it needs `mode: NORMAL`. On an installation of eight devices it reported
-> 513 fields and 1137 list entries across all four tabs in about five minutes — it asks a device
+> 513 fields and 1137 list entries across all four tabs in about five minutes. It asks a device
 > how many groups a tab holds rather than finding out by asking for one that is not there. Turn it
 > off again once you have your configuration.
 
@@ -353,7 +355,7 @@ Every platform below accepts these, in addition to its own base schema:
 
 - **masterbus_device_id** (**Required**, [ID](/guides/configuration-types#id)): which device this
   field belongs to.
-- **param** (**Required**, hex int, `0x0`–`0xFFFF`): the field number.
+- **param** (**Required**, hex int, `0x0` to `0xFFFF`): the field number.
 - **tab** (*Optional*, default `monitoring`): `monitoring`, `alarm`, `history` or
   `configuration`. See [Tabs](#tabs).
 - **value_type** (*Optional*): how to read the 32 bits the device sends. Each platform accepts only
@@ -414,7 +416,7 @@ sure something else on the bus polls the field, or it will never show a state at
 
 ### `button`
 
-Fires an event field once. Buttons take no `update_interval` — there is nothing to read back.
+Fires an event field once. Buttons take no `update_interval`, as there is nothing to read back.
 
 ```yaml
 button:
@@ -484,20 +486,20 @@ text_sensor:
 ```
 
 A **text** field does not answer with text. It answers with the number of an entry in the device's
-own string table, and the component reads that entry to get the string — two exchanges rather than
+own string table, and the component reads that entry to get the string: two exchanges rather than
 one. A field whose entry the device does not hold publishes as unavailable.
 
 A **time** field counts seconds, and publishes as `hh:mm:ss`. The same field type serves both a
-clock and a countdown — a shunt's `Time` is a time of day, its `Remaining` is a span of hours — so
+clock and a countdown (a shunt's `Time` is a time of day, its `Remaining` is a span of hours), so
 the hour is not folded into a day and a long span reads as `160:52:00`.
 
 A **date** field packs the calendar into one number, and publishes as `YYYY-MM-DD`.
 
-A number that cannot be either — negative, or larger than the format holds — publishes as
+A number that cannot be either, because it is negative or larger than the format holds, publishes as
 unavailable and logs a warning, rather than being truncated into something that looks plausible.
 
-If you want the number the device sent as well as the rendered text, declare the same field twice
-— once as a `text_sensor` with `value_type: time`, and once as a `sensor` with `value_type: float`:
+If you want the number the device sent as well as the rendered text, declare the same field twice:
+once as a `text_sensor` with `value_type: time`, and once as a `sensor` with `value_type: float`.
 
 ```yaml
 sensor:
@@ -538,7 +540,7 @@ text_sensor:
   `product_name`, `revision_code`, `firmware` or `class`.
 
 The device is asked when it first answers, and again when its announcements say something about it
-has changed — the way the vendor's own tools notice. `firmware` lists each of the device's
+has changed, which is how the vendor's own tools notice. `firmware` lists each of the device's
 processors' software versions. `class` asks nothing: it is the kind of equipment the device's
 address already says it is (see [Finding your equipment](#finding-your-equipment)). A device that
 does not carry one of these leaves the entity unavailable.
@@ -558,8 +560,8 @@ field's address, not a filter.
 
 **Measured** means frames of that shape were captured on a live bus and checked against what the
 vendor's own software reported for the same field. **Seen** means answers of that shape came back
-on a live bus and read sensibly — a display's own name, its message texts, a battery's charge
-thresholds — but were not compared with the vendor's software. **From the vendor library** means the
+on a live bus and read sensibly (a display's own name, its message texts, a battery's charge
+thresholds) but were not compared with the vendor's software. **From the vendor library** means the
 message numbers are the ones the vendor's own library uses for that tab, read out of the library
 itself, but no device has yet been watched answering one. Every tab carries a value the same way, a
 field number and 32 bits, and an answer that is not that length is dropped rather than guessed at.
@@ -573,7 +575,7 @@ setting against the equipment's own display after the first write to it.
 ## Polling and `update_interval`
 
 A MasterBus device answers a field **only when asked**. Nothing arrives unprompted, so an entity
-with no `update_interval` never transmits and stays silent — which is deliberate, so that a first
+with no `update_interval` never transmits and stays silent. That is deliberate, so that a first
 configuration on someone's boat or battery bank does nothing until asked.
 
 The unusual part: **an answer meant for someone else counts.** MasterBus answers are broadcast, so
@@ -581,7 +583,7 @@ a display panel or another bridge asking the same device for the same field upda
 too. When that has already happened within the interval, the request is skipped.
 
 So `update_interval` is an upper bound on how stale a value may get, and an upper bound on your own
-traffic — not a fixed transmit rate. On a bus where a display panel already polls at 1 Hz, a node
+traffic, not a fixed transmit rate. On a bus where a display panel already polls at 1 Hz, a node
 configured with 35 entities at `10s` was measured transmitting **nothing at all** for the fields the
 panel covered, while every entity kept updating. For a field nobody else wants, the same node polls
 at exactly the configured interval.
@@ -593,12 +595,12 @@ worth knowing before you wire a button into an automation.
 
 First, what goes on the wire: **a write to an event is two frames.** The value goes to the field,
 and then the hub's own address goes to the next field number, recording which node set the event
-off — the way the vendor's own software fires one. Any other write is the value alone: there the
+off, the way the vendor's own software fires one. Any other write is the value alone: there the
 next field number is a field of its own, such as a display panel's `Page duration` right after its
 `Backlight`. The hub speaks as `0x500001`, the vendor library's own address, unless given an
 `address` of its own.
 
-**The first write to a field asks first.** A field says whether it takes a write and whether it is
+The first write to a field asks first. A field says whether it takes a write and whether it is
 an event (its `writable` and `eventable` in a scan), and before the first write to each field the
 hub asks both; a field that says it takes no write is not written, and the log says so. A device
 that does not answer within half a second is written anyway, and a field that does not say it is
@@ -606,19 +608,19 @@ an event is written as none.
 After a `switch`, `number` or `select` writes, the field is read back 200 ms later, so the entity
 shows what the device kept.
 
-**There is often no state to read back.** Fields like `Close relay` and `Open relay` are *events*:
+There is often no state to read back. Fields like `Close relay` and `Open relay` are *events*:
 firing one sends the command, and reading the field afterwards always returns false. It reports the
 last command, not the contactor's position. The only evidence a command took effect is some other
-field — the block's own current, say.
+field, such as the block's own current.
 
-**A write that reaches the bus is not a command that took effect.** Equipment can be shared between
+A write that reaches the bus is not a command that took effect. Equipment can be shared between
 devices, and then only one of them accepts the command for it. On the installation this component
 was developed against, two battery blocks share one contactor: either one opens it, but only one of
 the two closes it again. Correctly formed writes to the other block changed nothing at all, with no
 error anywhere.
 
-**A field that takes a write can still ignore it.** Nothing comes back from a write to say whether
-it was acted on, so read the result — the read-back above, or another field. A wrong `param` on a
+A field that takes a write can still ignore it. Nothing comes back from a write to say whether
+it was acted on, so read the result: the read-back above, or another field. A wrong `param` on a
 field that takes writes fails silently.
 
 This component therefore does not retry, does not publish optimistically, and does not decide which
@@ -702,16 +704,38 @@ that keeps it rather than writing it to a log:
 
 Nothing is compiled in unless you configure the trigger.
 
+### `masterbus.scan` Action
+
+Starts a scan: the same one `scan: true` runs at boot, at any time you choose. A button in Home
+Assistant is the usual way to start one.
+
+```yaml
+button:
+  - platform: template
+    name: Scan MasterBus
+    on_press:
+      - masterbus.scan:
+```
+
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): the hub to scan with. Needed only when
+  there is more than one.
+
+The scan asks the devices to announce themselves, waits ten seconds, and then walks every device
+that answered, which takes minutes on a real installation. Started again before that wait is over,
+it starts the wait afresh; started while a walk is running, it logs a warning and does nothing.
+Using the action compiles the scan in without `scan: true`, so a configuration can keep it at hand
+without scanning on every boot.
+
 ## Configurations for known equipment
 
 Each section below is a paste-ready configuration for one kind of Mastervolt device.
 [What is listed](#what-is-listed) is the overview; each product's configuration is folded away under
-its heading, so expand the one you need. Change the `device:` address to your own —
-[Finding your equipment](#finding-your-equipment) prints it — and leave everything else as it stands.
+its heading, so expand the one you need. Change the `device:` address to your own, which
+[Finding your equipment](#finding-your-equipment) prints, and leave everything else as it stands.
 
-**Field numbers are not standard across Mastervolt equipment.** The same number means different
+Field numbers are not standard across Mastervolt equipment. The same number means different
 things on different products: field 9 is `AC Input` current on a MassCombi and `Time` on a shunt.
-A configuration is only valid for the product it was taken from. If yours is not listed, scan it —
+A configuration is only valid for the product it was taken from. If yours is not listed, scan it:
 the scan prints blocks like these for whatever answers.
 
 Only the first section carries the `canbus:` and `logger:` stanzas; the rest assume them, and
@@ -728,8 +752,8 @@ listed under `devices:`.
 ### What is listed
 
 A scan prints each device's article number, the one on its label, and that is how you find your
-equipment here; its `class` and `eventables` narrow it down where the article number is missing —
-see [Finding your equipment](#finding-your-equipment).
+equipment here; its `class` and `eventables` narrow it down where the article number is missing.
+See [Finding your equipment](#finding-your-equipment).
 
 | Product | Article number | `class` | `eventables` | Where the entry came from |
 |---|---|---|---|---|
@@ -740,12 +764,12 @@ see [Finding your equipment](#finding-your-equipment).
 The MassCombi in that capture answers through its MasterBus interface, which is why its class is
 the interface's rather than the inverter/charger's.
 
-**Not every device carries `eventables`.** The DC shunt refuses the question outright — every one
-of the 25 times it was asked in the capture the entry was built from — and so does the Modbus
+Not every device carries `eventables`. The DC shunt refuses the question outright, every one
+of the 25 times it was asked in the capture the entry was built from, and so does the Modbus
 interface on the reference installation. A `device` line without one is that, not a fault.
 
 Some equipment has little to read: a MasterView panel answers `eventables` `11` and the DIS
-EasyView 5 panel, article 77010310, `16` — both class `20`, display panels. The EasyView's
+EasyView 5 panel, article 77010310, `16`. Both are class `20`, display panels. The EasyView's
 monitoring tab holds its own controls rather than readings: six switches, among them `Close relay`
 and `Charger on`, which fire the events configured for them, and its display settings. The
 "INT ModBus to MB" interface, article 77030800, answers no `eventables` and reports only its own
@@ -760,7 +784,7 @@ The list grows by contribution, and an entry needs three things:
 
 1. **A scan of the one device**, pasted as it was logged: its `device` line, and the `group` and
    `field` lines that follow it. Those carry the field numbers, names, units and ranges, which is
-   most of an entry already — the converter turns them into the YAML block.
+   most of an entry already: the converter turns them into the YAML block.
 2. **What the equipment is**, as its label or manual names the model. The scan's `device` line
    gives the article number and the name the device carries, but that name is often one an
    installer chose, such as `BAT 1`, rather than the model.
@@ -779,11 +803,11 @@ something that looks right in Home Assistant without editing it.
 Reports `article` `66025000`, `class` `27` and `eventables` `2`.
 
 Blocks that form a bank are one **cluster**, and one block, the cluster master, reports for all of
-them. Its monitoring tab has two groups: `Cluster`, the bank as a whole in fields 0 to 5 — the
-state of charge is the mean of the blocks' — and `Battery`, its own readings in fields 136 to 141.
+them. Its monitoring tab has two groups: `Cluster`, the bank as a whole in fields 0 to 5 (the
+state of charge is the mean of the blocks'), and `Battery`, its own readings in fields 136 to 141.
 Every other block has one group, `General`, with its own readings in fields 0 to 5, and answers
-136 to 141 with the same values. So the bank is read from the master alone — the block whose
-configuration tab has no `Cluster master` field — and fields 136 to 141 give each block's own
+136 to 141 with the same values. So the bank is read from the master alone, the block whose
+configuration tab has no `Cluster master` field, and fields 136 to 141 give each block's own
 readings, master or not. The converter follows the groups, whichever block a scan finds as the
 master.
 
@@ -927,7 +951,7 @@ button:
 > [!WARNING]
 > Fields 117 and 119 operate the contactor that ties the block to the bank. Opening one
 > disconnects a real battery, and nothing asks twice. Neither field reports the contactor's
-> position — the block's own current is the only evidence a command took effect. On the
+> position: the block's own current is the only evidence a command took effect. On the
 > installation this was measured on the blocks are paired and one contactor serves each pair:
 > either block opens it, only the lower-numbered one closes it. See
 > [Writing to the bus](#writing-to-the-bus).
@@ -1075,7 +1099,7 @@ The state fields are lists, and their ranges say how long each list is: `Inverte
 `Shore fuse` 0 to 27. Individual entries seen on the wire include `Inverting`, `Standby`, `Auto`,
 `On`, `Off`, `No shore`, `5 %` and `18 A`.
 
-The component does not read the list itself, only the index — so to get a
+The component does not read the list itself, only the index. So to get a
 [`select`](#select) instead, take the entry order off your own equipment's display and write it
 out:
 
@@ -1190,25 +1214,25 @@ text_sensor:
 ## Hardware
 
 Everything here is about getting an MCU physically onto the bus. None of it is specific to
-MasterBus's use of CAN — it is the same job as putting a board on any 250 kbit/s CAN segment, with
+MasterBus's use of CAN. It is the same job as putting a board on any 250 kbit/s CAN segment, with
 one complication: the connector carries power as well, and Mastervolt does not publish its pinout.
 
 In order:
 
-1. Get the parts — [What you need](#what-you-need).
-2. Plug the breakout into a spare MasterBus port and identify the conductors —
+1. Get the parts: [What you need](#what-you-need).
+2. Plug the breakout into a spare MasterBus port and identify the conductors:
    [The connector](#the-connector), then [Checking the pair](#checking-the-pair).
-3. Decide whether the board may share a ground with the bus —
+3. Decide whether the board may share a ground with the bus:
    [Grounding and isolation](#grounding-and-isolation).
-4. Take the terminating resistor off the transceiver module — [Termination](#termination).
-5. Wire the transceiver to the MCU and to the bus — [Wiring the transceiver](#wiring-the-transceiver).
+4. Take the terminating resistor off the transceiver module: [Termination](#termination).
+5. Wire the transceiver to the MCU and to the bus: [Wiring the transceiver](#wiring-the-transceiver).
 6. Flash [the configuration to start from](#a-configuration-to-start-from) and read the scan.
 
 ### What you need
 
 - **A CAN transceiver with 3.3 V logic.** The MCU's CAN peripheral gives you logic-level TX and RX;
   the transceiver turns that into the differential pair. An **SN65HVD230** or **TJA1051T/3** works
-  directly with an ESP32. Avoid the **MCP2551** and similar 5 V-only parts — their logic levels do
+  directly with an ESP32. Avoid the **MCP2551** and similar 5 V-only parts: their logic levels do
   not match a 3.3 V MCU without level shifting.
   If you are using an [MCP2515 module](#using-an-external-can-controller) you already have one on
   the board and can skip this; check which transceiver is fitted, because the common modules pair
@@ -1217,7 +1241,7 @@ In order:
   **RJ45 male breakout board** is the least invasive route: it plugs into a spare port on a
   MasterBus hub and brings the eight conductors out to screw terminals, with nothing cut or
   soldered.
-- **A multimeter.** Not optional — see below.
+- **A multimeter.** Not optional, see below.
 
 ### The connector
 
@@ -1247,13 +1271,13 @@ pins 1 and 2 are also where CiA 303-1, the usual pinout for CAN on RJ45, puts CA
 ### Checking the pair
 
 > [!CAUTION]
-> **Check the table above against your own cable before you connect anything.** Mastervolt does not
+> Check the table above against your own cable before you connect anything. Mastervolt does not
 > publish the pinout, and the cable carries **+12 V** two pins away from the CAN pair. Wiring a
 > transceiver to the power pins destroys it.
 
 With the installation **powered down**:
 
-1. Measure resistance between conductors, pair by pair. The CAN pair reads about **60 Ω** — two
+1. Measure resistance between conductors, pair by pair. The CAN pair reads about **60 Ω**, two
    terminators in parallel at the ends of the chain. Nothing else on the connector will read that.
 2. Power the bus back up and confirm with a voltmeter. The supply pair sits at about **12 V**.
    CAN_H and CAN_L both idle near **2.5 V** relative to the bus ground, moving a volt or so apart
@@ -1292,14 +1316,14 @@ canbus:
     bit_rate: 250kbps
 ```
 
-On an ESP32 the CAN controller can be routed to most GPIOs, so pick any free pair — but avoid the
+On an ESP32 the CAN controller can be routed to most GPIOs, so pick any free pair, but avoid the
 chip's strapping pins, and anything already taken by flash, PSRAM or USB. The reference setup uses
 an **ESP32-C6** with GPIO20 and GPIO21.
 
 > [!WARNING]
 > The `Rs` pin is the single most misleading fault on these modules. Held high it puts the
 > transceiver in standby, where the **receiver still works and the driver does not**. The node then
-> reads the bus perfectly and every transmit fails with `ERROR_ALLTXBUSY` — which looks exactly
+> reads the bus perfectly and every transmit fails with `ERROR_ALLTXBUSY`, which looks exactly
 > like a dead chip or a software bug. Tie `Rs` to ground.
 
 ### Termination
@@ -1308,7 +1332,7 @@ A CAN segment is terminated with 120 Ω at each **end**, and nowhere else. Maste
 chain that Mastervolt already terminates at both ends with its own terminator plugs, so a board
 tapping into a spare hub port sits on a **stub** and must not add a terminator of its own.
 
-**Most SN65HVD230 breakout modules ship with a 120 Ω resistor fitted.** Leaving it in place makes
+Most SN65HVD230 breakout modules ship with a 120 Ω resistor fitted. Leaving it in place makes
 three terminators: the bus drops from about 60 Ω to about 40 Ω and starts throwing form and stuff
 errors. Remove the resistor, or open the module's jumper if it has one.
 
@@ -1329,8 +1353,8 @@ Check with everything powered down, measuring across CAN_H and CAN_L:
 The transceiver needs a ground reference shared with the bus. Whether that is safe to make
 directly depends on your installation.
 
-**Measure it.** With everything powered down, measure the resistance between MasterBus 0 V and the
-ground of anything else the MCU touches — another CAN bus, a USB host, a mains-powered supply.
+Measure it. With everything powered down, measure the resistance between MasterBus 0 V and the
+ground of anything else the MCU touches: another CAN bus, a USB host, a mains-powered supply.
 
 - **Bonded (below about 1 Ω):** the grounds are already common. A bare transceiver adds no new
   path, and an SN65HVD230 is fine.
@@ -1338,7 +1362,7 @@ ground of anything else the MCU touches — another CAN bus, a USB host, a mains
   separate, which on a battery installation can mean a ground loop carrying real current. Use an
   **isolated** transceiver such as an **ISO1042**, with an isolated supply for its bus side.
 
-If the MCU also sits on a second CAN bus — an inverter link, say — check that pair too. Two bare
+If the MCU also sits on a second CAN bus, such as an inverter link, check that pair too. Two bare
 transceivers on one board bond both buses to each other through the MCU's ground.
 
 ### Powering the board
@@ -1359,7 +1383,7 @@ Either way the transceiver's ground must reference the bus.
 Messages below are the ones the component and the CAN layer actually print, so you can search for
 what you are looking at.
 
-### `send to extended id=0x… failed with error 2!`
+### `send to extended id=0x... failed with error 2!`
 
 The name behind error 2 is `ERROR_ALLTXBUSY`, and it is misleading: the ESP32 driver reports it for
 every transmit failure, not only for a full queue. Read it as "the send did not happen", then work
@@ -1367,11 +1391,11 @@ out which of two very different faults you have. **What separates them is whethe
 being received.**
 
 *Values keep arriving, only sending fails.* The receive path works and the transmit path does not.
-Check the transceiver's `Rs`/standby pin, then swap the transceiver — this exact symptom has turned
+Check the transceiver's `Rs`/standby pin, then swap the transceiver: this exact symptom has turned
 out to be a module fault.
 
 *Nothing arrives either.* The controller has gone bus-off. It enters that state after about thirty
-consecutive failed transmissions of one frame — roughly twenty milliseconds — and then disconnects
+consecutive failed transmissions of one frame, roughly twenty milliseconds, and then disconnects
 itself from the bus entirely, so reception stops too and every entity goes unavailable. **Nothing
 in ESPHome brings a controller out of bus-off**: recovery needs an explicit call, an asynchronous
 wait and a second call, and none of them happen. Only a reboot restores it.
@@ -1382,15 +1406,16 @@ directions, suspect the wiring before the driver.
 
 ### `Scan heard nothing. Check wiring, bit rate and termination`
 
-Nothing at all is being received. Check the bit rate is `250kbps` first — it is the single most
+Nothing at all is being received. Check the bit rate is `250kbps` first. It is the single most
 common cause and the symptom is total silence rather than corruption. Then measure 60 Ω across
 CAN_H and CAN_L with the bus powered down. Then the wiring.
 
 ### `Wrote field N but could not send the frame that follows it`
 
-The value went out to an event but the frame that must follow it — the hub's address, written to
-the next field number — did not, so the device may have taken the write, ignored it, or half-applied it. Read the
-field back before assuming anything. This is a transmit failure like any other — see error 2 above.
+The value went out to an event but the frame that must follow it (the hub's address, written to
+the next field number) did not, so the device may have taken the write, ignored it, or half-applied
+it. Read the field back before assuming anything. This is a transmit failure like any other: see
+error 2 above.
 
 ### `Could not put the node request on the bus`
 
@@ -1417,7 +1442,7 @@ frame log, lower the log level, or read the log over the API.
 
 ### Entities stay unavailable
 
-Either the device is not answering — check the address against a scan — or nothing is asking. An
+Either the device is not answering (check the address against a scan) or nothing is asking. An
 entity with no `update_interval` transmits nothing and only updates when something else on the bus
 asks for the same field.
 
@@ -1430,7 +1455,7 @@ changes more rarely than the timeout allows, or nothing is polling it.
 
 See [Writing to the bus](#writing-to-the-bus). Check whether another device shares the equipment
 you are commanding. A field that takes no write at all is refused before anything is sent, with
-`Field N of device 0x… takes no write, by the device's own word; not written` in the log.
+`Field N of device 0x... takes no write, by the device's own word; not written` in the log.
 
 ### The log is missing lines or is full of half-lines
 
@@ -1455,7 +1480,7 @@ produce interleaved half-lines that look like corruption but are not.
 - Firmware update over MasterBus is out of scope, and the bootloader tab is deliberately absent.
 - The component carries no table of device types, article numbers or field layouts, and never
   infers one. What a field means is a property of your equipment. The configurations above are
-  documentation of what has been observed, not something the component knows — use a scan to find
+  documentation of what has been observed, not something the component knows. Use a scan to find
   out what yours reports.
 
 ## Resources
@@ -1463,14 +1488,14 @@ produce interleaved half-lines that look like corruption but are not.
 Mastervolt publishes no protocol documentation, and there is no specification to link to. What
 exists is other people's measurements, and this component's own.
 
-- [pmarches/masterbus-esp32](https://github.com/pmarches/masterbus-esp32) — packet captures from an
+- [pmarches/masterbus-esp32](https://github.com/pmarches/masterbus-esp32): packet captures from an
   unrelated installation, with a Wireshark dissector. Its identifier decode is not the one used
   here, but the captures are real traffic from equipment this project does not have, and they are
   what confirmed three of the message numbers documented above.
 - `masterbus_protocol.h` in the component's own source. Every constant carries how far it is
   actually known, marked VERIFIED, LIBRARY or UNVERIFIED, together with what established it. It
   is the authority when this page and the source disagree.
-- [CAN Bus](/components/canbus/) — the layer underneath, and where bit rate, mode and queue lengths
+- [CAN Bus](/components/canbus/): the layer underneath, and where bit rate, mode and queue lengths
   are really configured.
 
 ## See Also
