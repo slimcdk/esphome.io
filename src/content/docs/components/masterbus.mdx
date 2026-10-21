@@ -166,6 +166,10 @@ masterbus:
   reference it.
 - **canbus_id** (**Required**, [ID](/guides/configuration-types#id)): the
   [CAN Bus](/components/canbus/) component to listen on.
+- **address** (*Optional*, int, default `0x500001`): the address the hub speaks as, in its node
+  requests and after every write. The default is the vendor library's own. Give a second hub on the
+  same bus an address of its own; it needs a device class in its top five bits, like every
+  MasterBus address, and must not be one of your devices'.
 - **scan** (*Optional*, boolean, default `false`): ask every device on the bus to announce itself
   at boot and print a pasteable configuration. See [Finding your
   equipment](#finding-your-equipment).
@@ -220,16 +224,21 @@ masterbus:
 
 The scan sends a node request, then asks every device that answers what it is and walks every one
 of its groups — on all four tabs — reading each field's number, display type, name, unit, range,
-factory setting and whether it takes a write. It reports what each device answered, one line per
-device, one per group and one per field:
+factory setting and whether it takes a write, and for a list field what each entry is. It reports
+what each device answered, one line per device, one per group, one per field and one per list
+entry:
 
 ```txt
 [I][masterbus.scan]: Scan found device 0x6D56EA
 [I][masterbus.scan]: Walking 7 devices across all four tabs for their fields.
-[I][masterbus.scan]: device device=0x6D56EA class=27 eventables=2 article="66025000" name="BAT 1"
+[I][masterbus.scan]: device device=0x6D56EA class=27 eventables=2 article="66025000" serial="AB00A0001" name="BAT 1" firmware="1.6"
+[I][masterbus.scan]: count device=0x6D56EA q=0x0B value=262
 [I][masterbus.scan]: group device=0x6D56EA tab=0 group=1 name="Battery"
 [I][masterbus.scan]: field device=0x6D56EA tab=0 group=1 param=139 display=1 name="Battery" unit="V" min=0 max=52.8 step=0.01 factory=0 writable=0 eventable=0
 [I][masterbus.scan]: field device=0x6D56EA tab=0 group=1 param=117 display=5 name="Close relay" unit="" min=0 max=1 step=1 factory=0 writable=1 eventable=1
+[I][masterbus.scan]: field device=0x6D56EA tab=3 group=0 param=21 display=3 name="Language" min=0 max=2 step=1 factory=0 writable=1
+[I][masterbus.scan]: option device=0x6D56EA tab=3 param=21 index=0 name="English"
+[I][masterbus.scan]: option device=0x6D56EA tab=3 param=21 index=1 name="Nederlands"
 ```
 
 Copy those lines into the converter below to get a configuration out of them. Log prefixes and
@@ -241,8 +250,9 @@ The lines carry only what the device reported: `tab` and `display` are the vendo
 and a key is simply absent where the device did not answer for it. A field with no `display` at
 all is one the device would not describe, and the converter leaves it out rather than guessing.
 
-**The device line says what the equipment is.** `article` is the article number on its label, and
-`name` is the name the device carries — the one its display shows, which an installer may have
+**The device line says what the equipment is.** `article` is the article number on its label,
+`serial` the serial number of that one unit, `revision` its revision code, `firmware` the software
+version of each of its processors, and `name` is the name the device carries — the one its display shows, which an installer may have
 chosen: the six identical battery blocks on the installation this component was developed against
 answer `BAT 1` to `BAT 6`. `class` is the kind of equipment, which a MasterBus device carries in
 the top five bits of its own address, so it is there for every device, asked or not:
@@ -261,9 +271,24 @@ the top five bits of its own address, so it is there for every device, asked or 
 `eventables` is how many event slots the device has, which identical units share. The article
 number is how you find your equipment under
 [Configurations for known equipment](#configurations-for-known-equipment).
+
+> [!NOTE]
+> The serial number identifies your unit, and the line carries it. Take it out before pasting a scan
+> somewhere public; the converter does not need it and leaves it out of the configuration.
 Equipment that does not carry one of these leaves its key off, and the line is printed either way,
-so a device that describes no fields at all still reaches your configuration. The serial number is
-never asked for: it identifies one unit, and a scan is often pasted somewhere public.
+so a device that describes no fields at all still reaches your configuration.
+
+**`count` lines** follow each device line: every count the vendor's own software asks a device
+for, by its number `q`, with the value the device gave. Most mean only what the vendor calls them
+— `0x0B` software version, `0x1C`-`0x1F` the versions of the device's menus, `0x20` and `0x21` its
+alarms — and the converter does not use them. They are there for anyone working out more of the
+protocol.
+
+**`option` lines** follow a list field, one per entry. A radio or dropdown field's options come with
+their `name`; a device list's entries with the `entry` device they name; an event field's with the
+`source` device it watches and the `field` number on it. The converter turns them into the option
+names a `select` or `text_sensor` shows. A field whose device carries a longer form of its name adds
+`long_name` (and `very_long_name`) where it says more than `name` does.
 
 **`writable` and `eventable` are the device's own word** on what a field allows. A reading answers
 `writable=0`, a setting `writable=1`, and a button both. The converter picks the platform by it: a
@@ -284,10 +309,10 @@ comment. See [Tabs](#tabs).
 
 Where a device does not answer `writable` — a scan from before it was reported, for one — the
 converter offers the read-only platform of a pair — a `sensor` where a `number` may be possible, a
-`binary_sensor` where a `switch` may be — and says in a comment what to change it to. A list field is the exception: it is
-offered as a `select`, because that is the only way to see an option by name rather than by
-number. The bus does not report the names themselves, so the converter writes
-placeholders in the device's own order for you to fill in.
+`binary_sensor` where a `switch` may be — and says in a comment what to change it to. A list field
+becomes a `text_sensor` showing the entry by name, or a `select` where the device says it takes a
+write, with the names the scan's `option` lines carry. A scan from before those lines gives it
+numbered placeholders, in the device's own order, for you to rename.
 
 > [!TIP]
 > Scanning transmits, so it needs `mode: NORMAL`. On an installation of eight devices it reported
@@ -393,8 +418,9 @@ number:
 
 ### `select`
 
-A list field. The options are the device's own, listed in the order it numbers them, because the
-reported index picks the entry.
+A list field that takes a write. The options are the device's own, listed in the order it numbers
+them, because the reported index picks the entry; a scan reports their names. Accepts `value_type`
+of `list_option` (default), `device_id` for a device list, or `eventable` for an event field.
 
 ```yaml
 select:
@@ -411,7 +437,9 @@ select:
 
 ### `text_sensor`
 
-Accepts `value_type` of `text` (default), `time` or `date`.
+Accepts `value_type` of `text` (default), `time` or `date`, and for a list field that is read
+rather than written, `list_option`, `device_id` or `eventable` together with `options`: the names
+of the entries in the device's own order, as a scan reports them.
 
 ```yaml
 text_sensor:
@@ -420,6 +448,13 @@ text_sensor:
     param: 24
     name: Charger battery name
     update_interval: 5min
+  - platform: masterbus
+    masterbus_device_id: mb_combi
+    param: 16
+    name: Combi state
+    value_type: list_option
+    options: ["Off", "Standby", "Charging", "Inverting"]
+    update_interval: 30s
 ```
 
 A **text** field does not answer with text. It answers with the number of an entry in the device's
@@ -458,6 +493,29 @@ text_sensor:
 One answer feeds every entity configured for that field, and an entity that hears an answer it did
 not ask for skips its own next poll, so the second entity costs no extra traffic. Give the
 `update_interval` to one of them.
+
+#### What a device says about itself
+
+A `text_sensor` with `info` instead of `param` shows something the device says about itself
+rather than one of its fields:
+
+```yaml
+text_sensor:
+  - platform: masterbus
+    masterbus_device_id: mb_battery
+    info: serial_number
+    name: Battery serial number
+    entity_category: diagnostic
+```
+
+- **info** (**Required** without `param`): one of `article_number`, `serial_number`,
+  `product_name`, `revision_code`, `firmware` or `class`.
+
+The device is asked when it first answers, and again when its announcements say something about it
+has changed — the way the vendor's own tools notice. `firmware` lists each of the device's
+processors' software versions. `class` asks nothing: it is the kind of equipment the device's
+address already says it is (see [Finding your equipment](#finding-your-equipment)). A device that
+does not carry one of these leaves the entity unavailable.
 
 ## Tabs
 
@@ -511,7 +569,13 @@ worth knowing before you wire a button into an automation.
 First, what goes on the wire: **every write is two frames.** The value goes to the field, and then
 the hub's own address goes to the next field number, recording which node set the field off. The
 vendor's own software always sends both, and so does this component. The hub speaks as
-`0x500001`, the vendor library's own address.
+`0x500001`, the vendor library's own address, unless given an `address` of its own.
+
+**The first write to a field asks first.** A field says whether it takes a write (its `writable`
+in a scan), and before the first write to each field the hub asks; a field that says no is not
+written, and the log says so. A device that does not answer within half a second is written anyway.
+After a `switch`, `number` or `select` writes, the field is read back 200 ms later, so the entity
+shows what the device kept.
 
 **There is often no state to read back.** Fields like `Close relay` and `Open relay` are *events*:
 firing one sends the command, and reading the field afterwards always returns false. It reports the
@@ -524,13 +588,13 @@ was developed against, two battery blocks share one contactor: either one opens 
 the two closes it again. Correctly formed writes to the other block changed nothing at all, with no
 error anywhere.
 
-**A field says whether it takes a write**, and a scan reports it as `writable`. A write to a field
-that does not take one still looks exactly like a write that worked — nothing comes back to say
-otherwise — so check the scan before wiring one up. A wrong `param` fails silently.
+**A field that takes a write can still ignore it.** Nothing comes back from a write to say whether
+it was acted on, so read the result — the read-back above, or another field. A wrong `param` on a
+field that takes writes fails silently.
 
 This component therefore does not retry, does not publish optimistically, and does not decide which
 device to address on your behalf. Which device owns what is a property of your installation, not of
-the protocol. Read the result back and build the retry logic you need on top.
+the protocol. The read-back shows what the device kept; build any retry logic you need on top.
 
 ## Automations
 
@@ -990,9 +1054,9 @@ select:
     masterbus_device_id: mb_combi
     param: 20
     name: Inverter
-    # Your own list, in your own device's order. The order below is a placeholder: it has not been
-    # read off any equipment, and getting it wrong sends a working command to the wrong setting.
-    options: ["Off", "On", "Standby"]
+    # The device's own names for options 0 and 1, read off the 2022 capture, where a display panel
+    # asked for them. Whether there are more is not known: a scan of yours lists every one.
+    options: ["Off", "On"]
 ```
 
 </details>
@@ -1331,7 +1395,8 @@ changes more rarely than the timeout allows, or nothing is polling it.
 ### A write is accepted but nothing happens
 
 See [Writing to the bus](#writing-to-the-bus). Check whether another device shares the equipment
-you are commanding, and that the field takes a write at all — nothing on the bus says which do.
+you are commanding. A field that takes no write at all is refused before anything is sent, with
+`Field N of device 0x… takes no write, by the device's own word; not written` in the log.
 
 ### The log is missing lines or is full of half-lines
 
@@ -1343,10 +1408,10 @@ produce interleaved half-lines that look like corruption but are not.
 
 - Only `monitoring` reads and writes have been watched on a bus. The other tabs use the message
   numbers of the vendor's own library. See [Tabs](#tabs).
-- A list field reports its index, not its entry. To get names you supply the list yourself, in the
-  device's own order.
-- A scan reads a device's article number and name and whether each field takes a write; entities do
-  not consult either at run time. The serial number is never read. A device's status here comes
+- A list field answers with the index of an entry, and the entry's name is in your configuration,
+  as a scan reported it. A device whose list changes after the scan shows the old names.
+- A scan reads a device's article number, serial number and name and whether each field takes a
+  write; entities do not consult them at run time. A device's status here comes
   from whether it answers, not from what it reports: the vendor's own library has no other source
   either, and reports every device it has found as on.
 - A CAN controller that goes bus-off never recovers on its own. This is a property of the

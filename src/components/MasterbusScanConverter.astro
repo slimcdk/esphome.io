@@ -70,22 +70,23 @@
     const TAB_READABLE = { 0: "measured", 1: "library", 2: "library", 3: "seen" };
 
     // The vendor's display types. A field is only turned into an entity where its type says what
-    // the value means, and anything new is left alone. 9 (device list) and 10 (event) answer with
-    // the index of an entry in a list the device holds; what the entry names is not decoded yet,
-    // so they are read as that index and nothing is written.
+    // the value means, and anything new is left alone. The list types - 2 and 3 (options), 9 (a
+    // device list) and 10 (an event) - answer with the index of an entry, and the scan's option
+    // lines say what each entry is: a text sensor shows it, a select also writes it.
     const DISPLAY = {
       1: { platform: "sensor", writable: "number" },
-      2: { platform: "select", valueType: "list_option" },
-      3: { platform: "select", valueType: "list_option" },
+      2: { platform: "text_sensor", writable: "select", valueType: "list_option" },
+      3: { platform: "text_sensor", writable: "select", valueType: "list_option" },
       4: { platform: "binary_sensor", writable: "switch" },
       5: { platform: "button" },
       6: { platform: "text_sensor" },
       7: { platform: "text_sensor", valueType: "time" },
       8: { platform: "text_sensor", valueType: "date" },
-      9: { platform: "sensor", valueType: "list_option" },
-      10: { platform: "sensor", valueType: "list_option" },
+      9: { platform: "text_sensor", writable: "select", valueType: "device_id" },
+      10: { platform: "text_sensor", writable: "select", valueType: "eventable" },
       11: { platform: "binary_sensor", writable: "switch" },
     };
+    const LIST_TYPES = new Set(["list_option", "device_id", "eventable"]);
 
     const WRITABLE_PLATFORMS = new Set(["number", "switch", "select"]);
 
@@ -113,7 +114,7 @@
     function parseLine(line) {
       const header = line.lastIndexOf("]: ");
       const body = (header === -1 ? line : line.slice(header + 3)).trim();
-      const kind = ["device", "group", "field"].find(function (name) {
+      const kind = ["device", "group", "field", "option"].find(function (name) {
         return body.startsWith(name + " ");
       });
       if (kind === undefined) return null;
@@ -230,6 +231,39 @@
       const resolved = displayNames(fields, groupNames, deviceNames);
       const names = resolved.names;
 
+      // A list field's entries, from the option lines that follow it in the scan.
+      const entries = {};
+      for (const option of lines.filter((entry) => entry.kind === "option")) {
+        const key = fieldKey(option);
+        entries[key] = entries[key] || [];
+        entries[key][Number(option.index)] = option;
+      }
+      const fieldNames = {};
+      for (const field of fields) {
+        if (field.name !== undefined && field.name !== "")
+          fieldNames[field.device.toUpperCase() + "/" + field.param] = field.name;
+      }
+      // What each entry of a list field is called: an option by its own name, a device-list entry by
+      // the device it names, an event entry by the field it watches on its source device. ESPHome
+      // wants the names unique, and the bus does not promise that.
+      function entryNames(field) {
+        const listed = (entries[fieldKey(field)] || []).filter(Boolean);
+        const seen = {};
+        return listed.map(function (entry) {
+          let text;
+          if (entry.entry !== undefined) {
+            text = deviceNames[entry.entry] || entry.entry;
+          } else if (entry.field !== undefined) {
+            const source = entry.source !== undefined ? entry.source.toUpperCase() : field.device.toUpperCase();
+            text = fieldNames[source + "/" + entry.field] || "field " + entry.field;
+          } else {
+            text = entry.name !== undefined && entry.name !== "" ? entry.name : "option " + entry.index;
+          }
+          seen[text] = (seen[text] || 0) + 1;
+          return seen[text] > 1 ? text + " (" + seen[text] + ")" : text;
+        });
+      }
+
       const devices = [];
       const identities = {};
       for (const device of announced) {
@@ -282,23 +316,23 @@
         lines_out.push("    param: " + field.param);
         lines_out.push("    name: " + quote(names[fieldKey(field)]));
         if (platform !== "button") lines_out.push("    update_interval: " + interval);
-        if (display.valueType !== undefined && platform !== "select") {
+        // A select reads a list option unless told otherwise; everything else says what it reads.
+        if (display.valueType !== undefined && !(platform === "select" && display.valueType === "list_option")) {
           lines_out.push("    value_type: " + display.valueType);
         }
         if (field.unit !== undefined && field.unit !== "" && (platform === "sensor" || platform === "number")) {
           lines_out.push("    unit_of_measurement: " + quote(field.unit));
         }
-        if (platform === "select") {
-          // The bus does not report what a list's options are called, only which number is set.
-          const count = field.min === "0" && field.max !== undefined ? Number(field.max) + 1 : 1;
-          lines_out.push("    # the bus does not report option names; these are in the device's own order");
-          lines_out.push(
-            "    options: [" +
-              Array.from({ length: Math.min(Math.max(count, 1), 16) }, (_, index) => '"option ' + index + '"').join(
-                ", ",
-              ) +
-              "]",
-          );
+        if (LIST_TYPES.has(display.valueType)) {
+          let options = entryNames(field);
+          if (options.length === 0) {
+            // A scan from before option lines, or a device that named none: numbered stand-ins, in
+            // the device's own order, to be renamed by hand.
+            const count = field.min === "0" && field.max !== undefined ? Number(field.max) + 1 : 1;
+            options = Array.from({ length: Math.min(Math.max(count, 1), 16) }, (_, index) => "option " + index);
+            lines_out.push("    # the scan named no options; these are in the device's own order");
+          }
+          lines_out.push("    options: [" + options.map(quote).join(", ") + "]");
         }
         if (platform === "number") {
           lines_out.push("    min_value: " + (field.min === undefined ? 0 : field.min));
