@@ -226,7 +226,7 @@ device, one per group and one per field:
 ```txt
 [I][masterbus.scan]: Scan found device 0x6D56EA
 [I][masterbus.scan]: Walking 7 devices across all four tabs for their fields.
-[I][masterbus.scan]: device device=0x6D56EA product=2 article="66025000" name="BAT 1"
+[I][masterbus.scan]: device device=0x6D56EA class=27 eventables=2 article="66025000" name="BAT 1"
 [I][masterbus.scan]: group device=0x6D56EA tab=0 group=1 name="Battery"
 [I][masterbus.scan]: field device=0x6D56EA tab=0 group=1 param=139 display=1 name="Battery" unit="V" min=0 max=52.8 step=0.01 factory=0 writable=0 eventable=0
 [I][masterbus.scan]: field device=0x6D56EA tab=0 group=1 param=117 display=5 name="Close relay" unit="" min=0 max=1 step=1 factory=0 writable=1 eventable=1
@@ -244,9 +244,23 @@ all is one the device would not describe, and the converter leaves it out rather
 **The device line says what the equipment is.** `article` is the article number on its label, and
 `name` is the name the device carries — the one its display shows, which an installer may have
 chosen: the six identical battery blocks on the installation this component was developed against
-answer `BAT 1` to `BAT 6`. `product` is a number every unit of the same product answers alike; it
-is not the article number, but it groups identical equipment. The article number is how you find
-your equipment under [Configurations for known equipment](#configurations-for-known-equipment).
+answer `BAT 1` to `BAT 6`. `class` is the kind of equipment, which a MasterBus device carries in
+the top five bits of its own address, so it is there for every device, asked or not:
+
+| `class` | Equipment | | `class` | Equipment |
+|---|---|---|---|---|
+| `2` | inverter | | `19` | alternator battery monitor |
+| `6` | inverter/charger (Combi) | | `20` | display panel (MasterView, EasyView) |
+| `10` | charger | | `24` | DC/DC converter |
+| `11` | generator | | `25` | transformer |
+| `12` | DC source | | `27` | battery monitor (shunts, and batteries with their own) |
+| `14` | interface | | `28`-`30` | DC, AC and AC/DC measurement |
+| `16` | DC switching | | `31` | system overview |
+| `17` | AC switching | | | |
+
+`eventables` is how many event slots the device has, which identical units share. The article
+number is how you find your equipment under
+[Configurations for known equipment](#configurations-for-known-equipment).
 Equipment that does not carry one of these leaves its key off, and the line is printed either way,
 so a device that describes no fields at all still reaches your configuration. The serial number is
 never asked for: it identifies one unit, and a scan is often pasted somewhere public.
@@ -621,23 +635,28 @@ listed under `devices:`.
 ### What is listed
 
 A scan prints each device's article number, the one on its label, and that is how you find your
-equipment here; the `product` number works too — see [Finding your
-equipment](#finding-your-equipment).
+equipment here; its `class` and `eventables` narrow it down where the article number is missing —
+see [Finding your equipment](#finding-your-equipment).
 
-| Product | Article number | `product` | Where the entry came from |
-|---|---|---|---|
-| [Lithium battery block](#lithium-battery-block) | 66025000 | `2` | measured on a live installation, in daily use |
-| [MassCombi inverter/charger](#masscombi-invertercharger) | not known | `8` | rebuilt from a 2022 capture, never run |
-| [DC shunt](#dc-shunt) | not known | none | rebuilt from a 2022 capture, never run |
+| Product | Article number | `class` | `eventables` | Where the entry came from |
+|---|---|---|---|---|
+| [Lithium battery block](#lithium-battery-block) | 66025000 | `27` | `2` | measured on a live installation, in daily use |
+| [MassCombi inverter/charger](#masscombi-invertercharger) | not known | `14` | `8` | rebuilt from a 2022 capture, never run |
+| [DC shunt](#dc-shunt) | not known | `27` | none | rebuilt from a 2022 capture, never run |
 
-**Not every device carries a product number.** The DC shunt refuses the question outright — every
-one of the 25 times it was asked in the capture the entry was built from — and so does the Modbus
-interface on the reference installation. A `device` line without a `product` on it is that, not a
-fault.
+The MassCombi in that capture answers through its MasterBus interface, which is why its class is
+the interface's rather than the inverter/charger's.
 
-Some equipment has nothing to configure: a MasterView panel answers `product` `11`, a device that
-polls the bus and answers no monitoring field of its own answers `16`, and the "INT ModBus to MB"
-interface, article 77030800, answers no product number and reports only its own state.
+**Not every device carries `eventables`.** The DC shunt refuses the question outright — every one
+of the 25 times it was asked in the capture the entry was built from — and so does the Modbus
+interface on the reference installation. A `device` line without one is that, not a fault.
+
+Some equipment has little to read: a MasterView panel answers `eventables` `11` and the DIS
+EasyView 5 panel, article 77010310, `16` — both class `20`, display panels. The EasyView's
+monitoring tab holds its own controls rather than readings: six switches, among them `Close relay`
+and `Charger on`, which fire the events configured for them, and its display settings. The
+"INT ModBus to MB" interface, article 77030800, answers no `eventables` and reports only its own
+state.
 
 If your device reports an article number that is not in the table, its entry is missing rather than
 wrong.
@@ -664,7 +683,7 @@ something that looks right in Home Assistant without editing it.
 
 ### Lithium battery block
 
-Reports `article` `66025000` and `product` `2`.
+Reports `article` `66025000`, `class` `27` and `eventables` `2`.
 
 Blocks report twice: a **cluster** group carrying the bank as a whole, which every block answers
 with the same numbers, and a **battery** group carrying that one block's own readings. So the bank
@@ -817,7 +836,7 @@ button:
 
 ### MassCombi inverter/charger
 
-Answers `product` `8`.
+Reports `class` `14` (its MasterBus interface) and `eventables` `8`.
 
 Four groups: the state fields, the battery side, AC in and AC out.
 
@@ -985,7 +1004,7 @@ select:
 
 ### DC shunt
 
-Carries no `product` number: it refuses the question.
+Reports `class` `27` and no `eventables`: it refuses the question.
 
 One group, and the only device seen so far that carries a clock and a calendar.
 
@@ -1328,8 +1347,8 @@ produce interleaved half-lines that look like corruption but are not.
   device's own order.
 - A scan reads a device's article number and name and whether each field takes a write; entities do
   not consult either at run time. The serial number is never read. A device's status here comes
-  from whether it answers, not from what it reports: where the vendor's own software takes its other
-  states from has not been found.
+  from whether it answers, not from what it reports: the vendor's own library has no other source
+  either, and reports every device it has found as on.
 - A CAN controller that goes bus-off never recovers on its own. This is a property of the
   underlying [CAN Bus](/components/canbus/) platform rather than of this component, but it is what
   a MasterBus node looks like when it dies: every entity unavailable, the bus itself healthy, and

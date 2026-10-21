@@ -89,6 +89,27 @@
 
     const WRITABLE_PLATFORMS = new Set(["number", "switch", "select"]);
 
+    // What the top five bits of a device's address say it is, in the vendor's own words.
+    const CLASSES = {
+      2: "inverter",
+      6: "inverter/charger",
+      10: "charger",
+      11: "generator",
+      12: "DC source",
+      14: "interface",
+      16: "DC switching",
+      17: "AC switching",
+      19: "alternator battery monitor",
+      20: "display panel",
+      24: "DC/DC converter",
+      25: "transformer",
+      27: "battery monitor",
+      28: "DC measurement",
+      29: "AC measurement",
+      30: "AC/DC measurement",
+      31: "system overview",
+    };
+
     function parseLine(line) {
       const header = line.lastIndexOf("]: ");
       const body = (header === -1 ? line : line.slice(header + 3)).trim();
@@ -214,11 +235,11 @@
       for (const device of announced) {
         if (devices.indexOf(device.device) === -1) devices.push(device.device);
         // What the device says it is: the name it carries, the article number on its label, and the
-        // product code identical units share. Any of the three may be missing.
+        // class its address puts it in. Older scans carry no class; any of the three may be missing.
         const parts = [];
         if (device.name !== undefined && device.name !== "") parts.push(device.name);
         if (device.article !== undefined && device.article !== "") parts.push("article " + device.article);
-        if (device.product !== undefined) parts.push("product " + device.product);
+        if (device.class !== undefined) parts.push(CLASSES[Number(device.class)] || "class " + device.class);
         if (parts.length > 0) identities[device.device] = parts.join(", ");
       }
       const blocks = {};
