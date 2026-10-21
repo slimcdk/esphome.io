@@ -267,9 +267,9 @@
             const named = address(entry.entry);
             text = deviceNames[named] || named;
           } else if (entry.eventable !== undefined) {
-            const source = entry.source !== undefined ? address(entry.source) : address(field.device);
-            const param = eventables[source + "/" + entry.eventable];
-            text = (param !== undefined && fieldNames[source + "/" + param]) || "eventable " + entry.eventable;
+            const target = entry.target !== undefined ? address(entry.target) : address(field.device);
+            const param = eventables[target + "/" + entry.eventable];
+            text = (param !== undefined && fieldNames[target + "/" + param]) || "eventable " + entry.eventable;
           } else {
             text = entry.name !== undefined && entry.name !== "" ? entry.name : "option " + entry.index;
           }

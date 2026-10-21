@@ -204,7 +204,9 @@ masterbus:
 - **id** (**Required**, [ID](/guides/configuration-types#id)): referenced by entities through
   `masterbus_device_id`.
 - **device** (**Required**, hex int): the device's MasterBus address, `0x0` to `0x7FFFFF`. The
-  extended CAN identifier gives the address 23 bits; the rest carries the message type.
+  extended CAN identifier gives the address 23 bits; the rest carries the message type. The top
+  five bits are the device's `class`, and the other eighteen are worked out from the serial and
+  article numbers on its label, so a unit keeps its address for life. A scan reads it off the bus.
 - **timeout** (*Optional*, [Time](/guides/configuration-types#time), default `60s`): how long
   without a frame before the device counts as offline and its entities go unavailable. A device
   says nothing unless it is asked, so where this hub is the only node polling one, its timeout has
@@ -229,16 +231,20 @@ what each device answered, one line per device, one per group, one per field and
 entry:
 
 ```txt
-[I][masterbus.scan]: Scan found device 0x6D56EA
-[I][masterbus.scan]: Walking 7 devices across all four tabs for their fields.
-[I][masterbus.scan]: device device=0x6D56EA class=27 eventables=2 article="66025000" serial="AB00A0001" name="BAT 1" firmware="1.6"
-[I][masterbus.scan]: count device=0x6D56EA q=0x0B value=262
+[I][masterbus]: Scan found device 0x6D56EA
+[I][masterbus.scan]: Walking 8 devices across all four tabs for their fields.
+[I][masterbus.scan]: device device=0x6D56EA class=27 eventables=2 article="66025000" serial="AB00A0001" name="BAT 1" revision="AA0012" firmware="1.4 0.33"
+[I][masterbus.scan]: count device=0x6D56EA q=0x0B value=260
+[I][masterbus.scan]: count device=0x6D56EA q=0x40 value=117
+[I][masterbus.scan]: count device=0x6D56EA q=0x41 value=119
 [I][masterbus.scan]: group device=0x6D56EA tab=0 group=1 name="Battery"
+[I][masterbus.scan]: field device=0x6D56EA tab=0 group=1 param=136 display=1 name="State of charge" unit="%" min=0 max=100 step=1 factory=0 writable=0 eventable=0
 [I][masterbus.scan]: field device=0x6D56EA tab=0 group=1 param=139 display=1 name="Battery" unit="V" min=0 max=52.8 step=0.01 factory=0 writable=0 eventable=0
 [I][masterbus.scan]: field device=0x6D56EA tab=0 group=1 param=117 display=5 name="Close relay" unit="" min=0 max=1 step=1 factory=0 writable=1 eventable=1
-[I][masterbus.scan]: field device=0x6D56EA tab=3 group=0 param=21 display=3 name="Language" min=0 max=2 step=1 factory=0 writable=1
-[I][masterbus.scan]: option device=0x6D56EA tab=3 param=21 index=0 name="English"
-[I][masterbus.scan]: option device=0x6D56EA tab=3 param=21 index=1 name="Nederlands"
+[I][masterbus.scan]: group device=0x6D56EA tab=3 group=0 name="Device"
+[I][masterbus.scan]: field device=0x6D56EA tab=3 group=0 param=26 display=3 name="Language" unit="" min=0 max=5 step=1 factory=0 writable=1
+[I][masterbus.scan]: option device=0x6D56EA tab=3 param=26 index=0 name="English"
+[I][masterbus.scan]: option device=0x6D56EA tab=3 param=26 index=1 name="Nederlands"
 ```
 
 Copy those lines into the converter below to get a configuration out of them. Log prefixes and
@@ -252,10 +258,11 @@ all is one the device would not describe, and the converter leaves it out rather
 
 **The device line says what the equipment is.** `article` is the article number on its label,
 `serial` the serial number of that one unit, `revision` its revision code, `firmware` the software
-version of each of its processors, and `name` is the name the device carries — the one its display shows, which an installer may have
-chosen: the six identical battery blocks on the installation this component was developed against
-answer `BAT 1` to `BAT 6`. `class` is the kind of equipment, which a MasterBus device carries in
-the top five bits of its own address, so it is there for every device, asked or not:
+version of each of its processors — a battery block has two — and `name` is the name the device
+carries, the one its display shows, which an installer may have chosen: the six identical battery
+blocks on the installation this component was developed against answer `BAT 1` to `BAT 6`.
+`class` is the kind of equipment, which a MasterBus device carries in the top five bits of its own
+address, so it is there for every device, asked or not:
 
 | `class` | Equipment | | `class` | Equipment |
 |---|---|---|---|---|
@@ -270,24 +277,30 @@ the top five bits of its own address, so it is there for every device, asked or 
 
 `eventables` is how many event slots the device has, which identical units share. The article
 number is how you find your equipment under
-[Configurations for known equipment](#configurations-for-known-equipment).
+[Configurations for known equipment](#configurations-for-known-equipment). Equipment that does not
+carry one of these leaves its key off, and the line is printed either way, so a device that
+describes no fields at all still reaches your configuration.
 
 > [!NOTE]
 > The serial number identifies your unit, and the line carries it. Take it out before pasting a scan
 > somewhere public; the converter does not need it and leaves it out of the configuration.
-Equipment that does not carry one of these leaves its key off, and the line is printed either way,
-so a device that describes no fields at all still reaches your configuration.
 
 **`count` lines** follow each device line: every count the vendor's own software asks a device
-for, by its number `q`, with the value the device gave. Most mean only what the vendor calls them
-— `0x0B` software version, `0x1C`-`0x1F` the versions of the device's menus, `0x20` and `0x21` its
-alarms — and the converter does not use them. They are there for anyone working out more of the
-protocol.
+for, by its number `q`, with the value the device gave. Some point at a field: `0x40` plus n is
+the field number of the device's eventable n — on a battery block `0x40` is field 117,
+`Close relay`, and `0x41` field 119, `Open relay` — and the converter uses those to name an
+event's entries. `0x22`, `0x24` and `0x25` are the field numbers of the device's language, clock and
+calendar. The rest mean only what the vendor calls them — `0x0B` the software version, `0x1C`-`0x1F`
+the versions of the device's menus, `0x20` and `0x21` its alarms — and are there for anyone working
+out more of the protocol.
 
-**`option` lines** follow a list field, one per entry. A radio or dropdown field's options come with
-their `name`; a device list's entries with the `entry` device they name; an event field's with the
-`source` device it watches and the `field` number on it. The converter turns them into the option
-names a `select` or `text_sensor` shows. A field whose device carries a longer form of its name adds
+**`option` lines** follow a list field, one per entry, and a list holds as many entries as the
+field's `max`. A radio or dropdown field's options come with their `name`; a device list's entries
+with the `entry` device they name; an event command's with the `target` device the event is sent
+to and the `eventable` number on it, which that device's `count` lines turn into a field. The
+converter turns them into the option names a `select` or `text_sensor` shows: a display panel's
+`Event 1 target` lists `BAT 1` to `BAT 6`, and its `Event 1 command` lists `Close relay` and
+`Open relay`. A field whose device carries a longer form of its name adds
 `long_name` (and `very_long_name`) where it says more than `name` does.
 
 **`writable` and `eventable` are the device's own word** on what a field allows. A reading answers
@@ -316,9 +329,9 @@ numbered placeholders, in the device's own order, for you to rename.
 
 > [!TIP]
 > Scanning transmits, so it needs `mode: NORMAL`. On an installation of eight devices it reported
-> 513 fields across all four tabs of every group in about three and a half minutes — it asks a
-> device how many groups a tab holds rather than finding out by asking for one that is not there.
-> Turn it off again once you have your configuration.
+> 513 fields and 1137 list entries across all four tabs in about five minutes — it asks a device
+> how many groups a tab holds rather than finding out by asking for one that is not there. Turn it
+> off again once you have your configuration.
 
 ## Entities
 
@@ -425,10 +438,11 @@ of `list_option` (default), `device_id` for a device list, or `eventable` for an
 ```yaml
 select:
   - platform: masterbus
-    masterbus_device_id: mb_charger
-    param: 18
-    name: Charger stage
-    options: ["Bulk", "Absorption", "Float"]
+    masterbus_device_id: mb_panel
+    tab: configuration
+    param: 10
+    name: Panel auto lock
+    options: ["Off", "2 minutes", "5 minutes", "10 minutes"]
 ```
 
 > [!NOTE]
@@ -449,11 +463,11 @@ text_sensor:
     name: Charger battery name
     update_interval: 5min
   - platform: masterbus
-    masterbus_device_id: mb_combi
-    param: 16
-    name: Combi state
+    masterbus_device_id: mb_interface
+    param: 0
+    name: Interface state
     value_type: list_option
-    options: ["Off", "Standby", "Charging", "Inverting"]
+    options: ["Idle", "Communicating"]
     update_interval: 30s
 ```
 
