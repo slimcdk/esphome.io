@@ -479,10 +479,12 @@
         entries[key] = entries[key] || [];
         entries[key][index] = option;
       }
+      // An eventable is a field on the device's monitoring tab, and the same number on another tab
+      // is another field.
       const fieldNames = {};
       for (const field of fields) {
-        if (field.name !== undefined && field.name !== "")
-          fieldNames[address(field.device) + "/" + field.param] = field.name;
+        if (Number(field.tab) === 0 && field.name !== undefined && field.name !== "")
+          fieldNames[field.device + "/" + field.param] = field.name;
       }
       // A device's count 0x40 + n is the field number of its eventable n.
       const eventables = {};
