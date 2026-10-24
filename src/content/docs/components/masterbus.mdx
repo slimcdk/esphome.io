@@ -175,9 +175,10 @@ masterbus:
 - **canbus_id** (**Required**, [ID](/guides/configuration-types#id)): the
   [CAN Bus](/components/canbus/) component to listen on.
 - **address** (*Optional*, int, default `0x500001`): the address the hub speaks as, in its node
-  requests and after a write to an event. The default is the vendor library's own. Give a second hub on the
-  same bus an address of its own; it needs a device class in its top five bits, like every
-  MasterBus address, and must not be one of your devices'.
+  requests and after a write to an event. The default is the vendor library's own. Give a second hub
+  on the same bus an address of its own, as two hubs on one bus with one address are refused; it
+  needs a device class in its top five bits, like every MasterBus address, and must not be one of
+  your devices'.
 - **log_all_frames** (*Optional*, boolean, default `false`): log every MasterBus frame at DEBUG,
   with the message type and address already decoded. For protocol work, not for normal use.
 - **node_request_interval** (*Optional*, [Time](/guides/configuration-types#time), at least `1s`):
