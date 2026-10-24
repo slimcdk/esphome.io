@@ -404,7 +404,7 @@ binary_sensor:
     masterbus_device_id: mb_charger
     param: 21
     name: Charger state
-    update_interval: 1min
+    update_interval: 30s
 ```
 
 ### `switch`
@@ -484,7 +484,7 @@ text_sensor:
     masterbus_device_id: mb_charger
     param: 24
     name: Charger battery name
-    update_interval: 5min
+    update_interval: 30s
   - platform: masterbus
     masterbus_device_id: mb_interface
     param: 0
@@ -517,7 +517,7 @@ sensor:
     param: 6
     name: Time remaining raw
     value_type: float
-    update_interval: 5min
+    update_interval: 30s
 
 text_sensor:
   - platform: masterbus
