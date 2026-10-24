@@ -262,8 +262,8 @@ all is one the device would not describe, and the converter leaves it out rather
 The device line says what the equipment is. `article` is the article number on its label,
 `serial` the serial number of that one unit, `revision` its revision code, `firmware` the software
 version of each of its processors (a battery block has two), and `name` is the name the device
-carries, the one its display shows, which an installer may have chosen: the six identical battery
-blocks on the installation this component was developed against answer `BAT 1` to `BAT 6`.
+carries, the one its display shows, which an installer may have chosen: identical battery blocks
+can answer `Battery 1`, `Battery 2` and so on.
 `class` is the kind of equipment, which a MasterBus device carries in the top five bits of its own
 address, so it is there for every device, asked or not:
 
@@ -302,7 +302,7 @@ field's `max`. A radio or dropdown field's options come with their `name`; a dev
 with the `entry` device they name; an event command's with the `target` device the event is sent
 to and the `eventable` number on it, which that device's `count` lines turn into a field. The
 converter turns them into the option names a `select` or `text_sensor` shows: a display panel's
-`Event 1 target` lists `BAT 1` to `BAT 6`, and its `Event 1 command` lists `Close relay` and
+`Event 1 target` lists `Battery 1` to `Battery 6`, and its `Event 1 command` lists `Close relay` and
 `Open relay`. A device may list fewer commands than its target holds (a battery block listed only
 `Close relay` and was set to `Open relay`), so where the target's `device` line gives its
 `eventables`, the converter offers all of them. A field whose device carries a longer form of its name adds
@@ -770,11 +770,11 @@ Not every device carries `eventables`. The DC shunt refuses the question outrigh
 of the 25 times it was asked in the capture the entry was built from, and so does the Modbus
 interface on the reference installation. A `device` line without one is that, not a fault.
 
-Some equipment has little to read: a MasterView panel answers `eventables` `11` and the DIS
+Some equipment has little to read: a MasterView panel answers `eventables` `11` and the
 EasyView 5 panel, article 77010310, `16`. Both are class `20`, display panels. The EasyView's
 monitoring tab holds its own controls rather than readings: six switches, among them `Close relay`
 and `Charger on`, which fire the events configured for them, and its display settings. The
-"INT ModBus to MB" interface, article 77030800, answers no `eventables` and reports only its own
+Modbus interface, article 77030800, answers no `eventables` and reports only its own
 state.
 
 If your device reports an article number that is not in the table, its entry is missing rather than
@@ -789,7 +789,7 @@ The list grows by contribution, and an entry needs three things:
    most of an entry already: the converter turns them into the YAML block.
 2. **What the equipment is**, as its label or manual names the model. The scan's `device` line
    gives the article number and the name the device carries, but that name is often one an
-   installer chose, such as `BAT 1`, rather than the model.
+   installer chose, such as `Battery 1`, rather than the model.
 3. **Whether it was run.** Say whether the configuration was flashed and watched against the
    equipment's own display, or only rebuilt from a recording. An entry that was never run is still
    worth having, and readers need to know which kind they are looking at.
@@ -838,7 +838,7 @@ masterbus:
     - id: mb_bat1
       device: 0x6C1001
       on_offline:
-        - logger.log: "BAT 1 stopped answering"
+        - logger.log: "Battery 1 stopped answering"
     - id: mb_bat2
       device: 0x6C1003
 
@@ -895,7 +895,7 @@ sensor:
   - platform: masterbus
     masterbus_device_id: mb_bat1
     param: 136
-    name: BAT 1 state of charge
+    name: Battery 1 state of charge
     update_interval: 10s
     unit_of_measurement: "%"
     device_class: battery
@@ -904,7 +904,7 @@ sensor:
   - platform: masterbus
     masterbus_device_id: mb_bat1
     param: 138
-    name: BAT 1 capacity consumed
+    name: Battery 1 capacity consumed
     update_interval: 10s
     unit_of_measurement: Ah
     state_class: measurement
@@ -912,7 +912,7 @@ sensor:
   - platform: masterbus
     masterbus_device_id: mb_bat1
     param: 139
-    name: BAT 1 voltage
+    name: Battery 1 voltage
     update_interval: 10s
     unit_of_measurement: V
     device_class: voltage
@@ -921,7 +921,7 @@ sensor:
   - platform: masterbus
     masterbus_device_id: mb_bat1
     param: 140
-    name: BAT 1 current
+    name: Battery 1 current
     update_interval: 10s
     unit_of_measurement: A
     device_class: current
@@ -930,7 +930,7 @@ sensor:
   - platform: masterbus
     masterbus_device_id: mb_bat1
     param: 141
-    name: BAT 1 temperature
+    name: Battery 1 temperature
     update_interval: 10s
     unit_of_measurement: "°C"
     device_class: temperature
@@ -941,11 +941,11 @@ button:
   - platform: masterbus
     masterbus_device_id: mb_bat1
     param: 119
-    name: BAT 1 open relay
+    name: Battery 1 open relay
   - platform: masterbus
     masterbus_device_id: mb_bat1
     param: 117
-    name: BAT 1 close relay
+    name: Battery 1 close relay
 ```
 
 </details>
