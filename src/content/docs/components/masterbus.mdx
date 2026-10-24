@@ -198,7 +198,7 @@ masterbus:
   canbus_id: mb_can
   devices:
     - id: mb_battery
-      device: 0x6D56EA
+      device: 0x6C1001
       timeout: 60s
 ```
 
@@ -234,20 +234,20 @@ what each device answered, one line per device, one per group, one per field and
 entry:
 
 ```txt
-[I][masterbus]: Scan found device 0x6D56EA
+[I][masterbus]: Scan found device 0x6C1001
 [I][masterbus.scan]: Walking 8 devices across all four tabs for their fields.
-[I][masterbus.scan]: device device=0x6D56EA class=27 eventables=2 article="66025000" serial="AB00A0001" name="BAT 1" revision="AA0012" firmware="1.4 0.33"
-[I][masterbus.scan]: count device=0x6D56EA q=0x0B value=260
-[I][masterbus.scan]: count device=0x6D56EA q=0x40 value=117
-[I][masterbus.scan]: count device=0x6D56EA q=0x41 value=119
-[I][masterbus.scan]: group device=0x6D56EA tab=0 group=1 name="Battery"
-[I][masterbus.scan]: field device=0x6D56EA tab=0 group=1 param=136 display=1 name="State of charge" unit="%" min=0 max=100 step=1 factory=0 writable=0 eventable=0
-[I][masterbus.scan]: field device=0x6D56EA tab=0 group=1 param=139 display=1 name="Battery" unit="V" min=0 max=52.8 step=0.01 factory=0 writable=0 eventable=0
-[I][masterbus.scan]: field device=0x6D56EA tab=0 group=1 param=117 display=5 name="Close relay" unit="" min=0 max=1 step=1 factory=0 writable=1 eventable=1
-[I][masterbus.scan]: group device=0x6D56EA tab=3 group=0 name="Device"
-[I][masterbus.scan]: field device=0x6D56EA tab=3 group=0 param=26 display=3 name="Language" unit="" min=0 max=5 step=1 factory=0 writable=1
-[I][masterbus.scan]: option device=0x6D56EA tab=3 param=26 index=0 name="English"
-[I][masterbus.scan]: option device=0x6D56EA tab=3 param=26 index=1 name="Nederlands"
+[I][masterbus.scan]: device device=0x6C1001 class=27 eventables=2 article="66025000" serial="AB00A0001" name="Battery 1" revision="AA0012" firmware="1.4 0.33"
+[I][masterbus.scan]: count device=0x6C1001 q=0x0B value=260
+[I][masterbus.scan]: count device=0x6C1001 q=0x40 value=117
+[I][masterbus.scan]: count device=0x6C1001 q=0x41 value=119
+[I][masterbus.scan]: group device=0x6C1001 tab=0 group=1 name="Battery"
+[I][masterbus.scan]: field device=0x6C1001 tab=0 group=1 param=136 display=1 name="State of charge" unit="%" min=0 max=100 step=1 factory=0 writable=0 eventable=0
+[I][masterbus.scan]: field device=0x6C1001 tab=0 group=1 param=139 display=1 name="Battery" unit="V" min=0 max=52.8 step=0.01 factory=0 writable=0 eventable=0
+[I][masterbus.scan]: field device=0x6C1001 tab=0 group=1 param=117 display=5 name="Close relay" unit="" min=0 max=1 step=1 factory=0 writable=1 eventable=1
+[I][masterbus.scan]: group device=0x6C1001 tab=3 group=0 name="Device"
+[I][masterbus.scan]: field device=0x6C1001 tab=3 group=0 param=26 display=3 name="Language" unit="" min=0 max=5 step=1 factory=0 writable=1
+[I][masterbus.scan]: option device=0x6C1001 tab=3 param=26 index=0 name="English"
+[I][masterbus.scan]: option device=0x6C1001 tab=3 param=26 index=1 name="Nederlands"
 ```
 
 Copy those lines into the converter below to get a configuration out of them. Log prefixes and
@@ -641,7 +641,7 @@ masterbus:
   canbus_id: mb_can
   devices:
     - id: mb_battery
-      device: 0x6D56EA
+      device: 0x6C1001
       on_online:
         - logger.log: "Battery bank answered"
       on_offline:
@@ -836,11 +836,11 @@ masterbus:
   canbus_id: mb_can
   devices:
     - id: mb_bat1
-      device: 0x6D56EA
+      device: 0x6C1001
       on_offline:
         - logger.log: "BAT 1 stopped answering"
     - id: mb_bat2
-      device: 0x6D4ECC
+      device: 0x6C1003
 
 sensor:
   # Group 0 on the cluster master, the bank as a whole. On any other block fields 0 to 5 are that
@@ -973,7 +973,7 @@ masterbus:
   canbus_id: mb_can
   devices:
     - id: mb_combi
-      device: 0x3AF412
+      device: 0x381002
 
 sensor:
   # Group 1: the battery side.
@@ -1141,7 +1141,7 @@ masterbus:
   canbus_id: mb_can
   devices:
     - id: mb_shunt
-      device: 0x6F1297
+      device: 0x6C1007
 
 sensor:
   - platform: masterbus
