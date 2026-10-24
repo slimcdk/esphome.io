@@ -507,7 +507,8 @@ A **time** field counts seconds, and publishes as `hh:mm:ss`. The same field typ
 clock and a countdown (a shunt's `Time` is a time of day, its `Remaining` is a span of hours), so
 the hour is not folded into a day and a long span reads as `160:52:00`.
 
-A **date** field packs the calendar into one number, and publishes as `YYYY-MM-DD`.
+A **date** field packs the calendar into one number, and publishes as `YYYY-MM-DD`. A date of zero,
+or one with a month or day of zero, as a device may hold where none is set, publishes as unavailable.
 
 A number that cannot be either, because it is negative or larger than the format holds, publishes as
 unavailable and logs a warning, rather than being truncated into something that looks plausible.
