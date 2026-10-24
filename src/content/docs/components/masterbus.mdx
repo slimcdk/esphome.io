@@ -211,8 +211,10 @@ masterbus:
   article numbers on its label, so a unit keeps its address for life. A scan reads it off the bus.
 - **timeout** (*Optional*, [Time](/guides/configuration-types#time), default `60s`): how long
   without a frame before the device counts as offline and its entities go unavailable. A device
-  says nothing unless it is asked, so where this hub is the only node polling one, its timeout has
-  to outlast the slowest `update_interval` among its own entities. ESPHome warns when it does not.
+  says nothing unless it is asked, so where this hub is the only node asking it, the timeout has to
+  outlast the gap between two answers. ESPHome warns when even the shortest `update_interval` among
+  the device's entities is no shorter than its timeout, unless the hub's `node_request_interval` is
+  shorter than the timeout: the announcements those requests bring in keep the device online too.
 - **on_online** / **on_offline** (*Optional*, [Automation](/automations/actions/)): see
   [Automations](#automations).
 
