@@ -87,6 +87,8 @@
       11: { platform: "binary_sensor", writable: "switch" },
     };
     const LIST_TYPES = new Set(["list_option", "device_id", "eventable"]);
+    // The most entries a scan walks in one list.
+    const MAX_LIST_ENTRIES = 64;
 
     const WRITABLE_PLATFORMS = new Set(["number", "switch", "select"]);
 
@@ -427,9 +429,11 @@
       // A list field's entries, from the option lines that follow it in the scan.
       const entries = {};
       for (const option of lines.filter((entry) => entry.kind === "option")) {
+        const index = Number(option.index);
+        if (!Number.isInteger(index) || index < 0 || index >= MAX_LIST_ENTRIES) continue;
         const key = fieldKey(option);
         entries[key] = entries[key] || [];
-        entries[key][Number(option.index)] = option;
+        entries[key][index] = option;
       }
       const fieldNames = {};
       for (const field of fields) {
@@ -447,11 +451,19 @@
       // the device it names, an event entry by the eventable field it commands on its device. ESPHome
       // wants the names unique, and the bus does not promise that.
       function entryNames(field) {
-        let listed = (entries[fieldKey(field)] || []).filter(Boolean);
+        const reported = entries[fieldKey(field)] || [];
+        if (reported.length === 0) return [];
+        // An entry is picked by its position, so a line lost from the log leaves a gap that keeps
+        // its place rather than closing up and moving every later entry onto the wrong index. The
+        // scan walks as many entries as the field's maximum, so a lost tail keeps its places too.
+        let length = reported.length;
+        const maximum = Math.floor(Number(field.max));
+        if (maximum > length) length = Math.min(maximum, MAX_LIST_ENTRIES);
+        let listed = Array.from({ length: length }, (_, index) => reported[index] || { index: String(index) });
         // An event command picks one of its target's eventables by number, and a device may list
         // fewer of them than it holds: a battery block listed one and was set to the second. Where
         // the target says how many eventables it has, the command offers all of them.
-        const first = listed[0];
+        const first = reported.find(Boolean);
         if (first !== undefined && first.eventable !== undefined && first.target !== undefined) {
           const held = eventableCounts[address(first.target)];
           if (held !== undefined && held > listed.length) {
