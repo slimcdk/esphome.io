@@ -615,9 +615,12 @@ next field number is a field of its own, such as a display panel's `Page duratio
 
 The first write to a field asks first. A field says whether it takes a write and whether it is
 an event (its `writable` and `eventable` in a scan), and before the first write to each field the
-hub asks both; a field that says it takes no write is not written, and the log says so. A device
-that does not answer within half a second is written anyway, and a field that does not say it is
+hub asks both; a field that says it takes no write is not written, and the log says so. Where the
+device does not say within half a second whether the field takes a write, a field on the
+`configuration` tab is not written, with a warning in the log, because a write there changes the
+equipment's own settings; on the other tabs it is written anyway. A field that does not say it is
 an event is written as none.
+
 After a `switch`, `number` or `select` writes, the field is read back 200 ms later, so the entity
 shows what the device kept.
 
@@ -1457,6 +1460,9 @@ changes more rarely than the timeout allows, or nothing is polling it.
 See [Writing to the bus](#writing-to-the-bus). Check whether another device shares the equipment
 you are commanding. A field that takes no write at all is refused before anything is sent, with
 `Field N of device 0x... takes no write, by the device's own word; not written` in the log.
+A configuration-tab field whose device did not say whether it takes a write is refused too, with
+`Field N on the configuration tab of device 0x... did not say whether it takes a write; not
+written`: try again once the device answers, or check it is online.
 
 ### The Log Is Missing Lines or Is Full of Half-Lines
 
