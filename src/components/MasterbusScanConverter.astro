@@ -625,9 +625,11 @@
           let options = entryNames(field);
           if (options.length === 0) {
             // A scan from before option lines, or a device that named none: numbered stand-ins, in
-            // the device's own order, to be renamed by hand.
-            const count = field.min === "0" && field.max !== undefined ? Number(field.max) + 1 : 1;
-            options = Array.from({ length: Math.min(Math.max(count, 1), 16) }, (_, index) => "option " + index);
+            // the device's own order, to be renamed by hand. A list holds as many entries as its
+            // maximum, which is how many the scan walks.
+            const maximum = Math.floor(Number(field.max));
+            const count = maximum > 0 ? Math.min(maximum, MAX_LIST_ENTRIES) : 1;
+            options = Array.from({ length: count }, (_, index) => "option " + index);
             lines_out.push("    # the scan named no options; these are in the device's own order");
           }
           lines_out.push("    options: [" + options.map(quote).join(", ") + "]");
