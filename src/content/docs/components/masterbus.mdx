@@ -496,7 +496,9 @@ text_sensor:
 
 A **text** field does not answer with text. It answers with the number of an entry in the device's
 own string table, and the component reads that entry to get the string: two exchanges rather than
-one. A field whose entry the device does not hold publishes as unavailable.
+one. A field whose entry the device does not hold publishes as unavailable. Only an entity with an
+`update_interval` reads the entry: one without never transmits, so it shows nothing even when
+another node's answer carries the field's number.
 
 A **time** field counts seconds, and publishes as `hh:mm:ss`. The same field type serves both a
 clock and a countdown (a shunt's `Time` is a time of day, its `Remaining` is a span of hours), so
@@ -585,7 +587,8 @@ setting against the equipment's own display after the first write to it.
 ## Polling and `update_interval`
 
 A MasterBus device answers a field **only when asked**. Nothing arrives unprompted, so an entity
-with no `update_interval` never transmits and stays silent. That is deliberate, so that a first
+with no `update_interval` never transmits and stays silent, a text field included: it does not
+read the string another node's answer points at either. That is deliberate, so that a first
 configuration on someone's boat or battery bank does nothing until asked.
 
 The unusual part: **an answer meant for someone else counts.** MasterBus answers are broadcast, so
@@ -1442,7 +1445,7 @@ frame log, lower the log level, or read the log over the API.
 
 Either the device is not answering (check the address against a scan) or nothing is asking. An
 entity with no `update_interval` transmits nothing and only updates when something else on the bus
-asks for the same field.
+asks for the same field, and a text field without one stays unavailable even then.
 
 ### One Entity Goes Unavailable While the Rest of Its Device Is Fine
 
