@@ -1412,6 +1412,11 @@ A channel that was never wired looks identical: a controller transmitting where 
 acknowledge it reaches bus-off in milliseconds and stays there. If a channel is silent in both
 directions, suspect the wiring before the driver.
 
+### `The CAN bus refused a frame`
+
+The hub's own warning, logged once when the bus stops taking frames and shown as a warning on the
+device until the next frame goes out. The cause is the one behind error 2 above.
+
 ### `Scan heard nothing. Check wiring, bit rate and termination`
 
 Nothing at all is being received. Check the bit rate is `250kbps` first. It is the single most
