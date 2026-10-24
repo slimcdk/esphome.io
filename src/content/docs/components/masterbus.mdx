@@ -437,8 +437,9 @@ button:
 
 ### `number`
 
-A numeric field you can set. `min_value`, `max_value` and `step` are required; a scan reports the
-device's own range as the field's `min`, `max` and `step`, and the converter fills them in.
+A numeric field you can set. `min_value`, `max_value` and `step` are required, and `min_value` may
+not be greater than `max_value`; a scan reports the device's own range as the field's `min`, `max`
+and `step`, and the converter fills them in.
 
 ```yaml
 number:
@@ -455,7 +456,8 @@ number:
 ### `select`
 
 A list field that takes a write. The options are the device's own, listed in the order it numbers
-them, because the reported index picks the entry; a scan reports their names. Accepts `value_type`
+them, because the reported index picks the entry; a scan reports their names. There has to be at
+least one, and each name may appear only once, since the name chosen is what picks the index. Accepts `value_type`
 of `list_option` (default), `device_id` for a device list, or `eventable` for an event field.
 
 ```yaml
