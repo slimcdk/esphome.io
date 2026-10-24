@@ -253,12 +253,22 @@
       },
     };
 
-    function parseLine(line) {
-      const header = line.lastIndexOf("]: ");
+    const KINDS = ["device", "group", "field", "option", "count"];
+    // ESPHome's logger colours every line, and a terminal copies the colour codes along.
+    const ANSI = /\x1b\[[0-9;]*[A-Za-z]/g;
+    // Control characters a device string may carry, which YAML does not allow in a value.
+    const CONTROL = /[\x00-\x1f\x7f-\x9f]+/g;
+
+    function startsWithKind(text) {
+      return KINDS.find((name) => text.startsWith(name + " "));
+    }
+
+    function parseLine(raw) {
+      const line = raw.replace(ANSI, "").trim();
+      // The log prefix ends at the first "]: ", and a value may hold one of its own.
+      const header = startsWithKind(line) !== undefined ? -1 : line.indexOf("]: ");
       const body = (header === -1 ? line : line.slice(header + 3)).trim();
-      const kind = ["device", "group", "field", "option", "count"].find(function (name) {
-        return body.startsWith(name + " ");
-      });
+      const kind = startsWithKind(body);
       if (kind === undefined) return null;
       const entry = { kind: kind };
       let at = kind.length + 1;
@@ -282,7 +292,10 @@
               at += 2;
             }
           }
+          // A line cut off inside a string says nothing reliable about that key.
+          if (at >= body.length) break;
           at++;
+          value = value.replace(CONTROL, " ").replace(/ +/g, " ").trim();
         } else {
           const end = body.indexOf(" ", at);
           value = body.slice(at, end === -1 ? body.length : end);
@@ -290,7 +303,38 @@
         }
         entry[key] = value;
       }
+      // The same device written another way is the same device.
+      for (const key of ["device", "target", "entry"]) {
+        if (entry[key] !== undefined && /^(0x)?[0-9a-f]+$/i.test(entry[key])) entry[key] = address(entry[key]);
+      }
       return entry;
+    }
+
+    // What a key says a line is about: a log pasted with the scan run twice, or a line repeated,
+    // describes the same thing again, and the later line adds to the earlier one.
+    function lineKey(entry) {
+      if (entry.kind === "device") return "device/" + entry.device;
+      if (entry.kind === "group") return "group/" + entry.device + "/" + entry.tab + "/" + entry.group;
+      if (entry.kind === "field") return "field/" + entry.device + "/" + entry.tab + "/" + entry.param;
+      if (entry.kind === "option")
+        return "option/" + entry.device + "/" + entry.tab + "/" + entry.param + "/" + entry.index;
+      return "count/" + entry.device + "/" + entry.q;
+    }
+
+    function readScan(text) {
+      const lines = [];
+      const seen = {};
+      for (const entry of text.split("\n").map(parseLine)) {
+        if (entry === null) continue;
+        const key = lineKey(entry);
+        if (seen[key] === undefined) {
+          seen[key] = entry;
+          lines.push(entry);
+        } else {
+          Object.assign(seen[key], entry);
+        }
+      }
+      return lines;
     }
 
     function deviceId(address) {
@@ -381,7 +425,7 @@
     }
 
     function convert(text) {
-      const lines = text.split("\n").map(parseLine).filter(Boolean);
+      const lines = readScan(text);
       const fields = lines.filter((entry) => entry.kind === "field");
       // A scan opens each device with a line of its own, so a device that describes no fields is
       // still configurable. Older scans printed no such line; the field lines still name it.
@@ -660,12 +704,7 @@
     button.addEventListener("click", function () {
       const text = input.value;
       output.value = convert(text);
-      const count = text
-        .split("\n")
-        .map(parseLine)
-        .filter(function (entry) {
-          return entry !== null && entry.kind === "field";
-        }).length;
+      const count = readScan(text).filter((entry) => entry.kind === "field").length;
       if (status !== null) status.textContent = count + (count === 1 ? " field read" : " fields read");
     });
   })();
