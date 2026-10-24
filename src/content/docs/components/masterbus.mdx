@@ -26,7 +26,7 @@ library. Nothing in this component guesses at a frame it has not seen.
 The component sits on top of the standard [CAN Bus](/components/canbus/) component, so any CAN
 platform ESPHome supports will do.
 
-### A configuration to start from
+### A Configuration to Start From
 
 You do not need to know anything about your bus to begin. This is complete: paste it, set the two
 pins, flash, and read the log. It transmits one broadcast, lists every device that answers, and
@@ -52,8 +52,8 @@ logger:
 canbus:
   - platform: esp32_can
     id: mb_can
-    tx_pin: GPIO5     # to the transceiver's TX / D
-    rx_pin: GPIO4     # to the transceiver's RX / R
+    tx_pin: GPIOXX    # to the transceiver's TX / D
+    rx_pin: GPIOXX    # to the transceiver's RX / R
     bit_rate: 250kbps
     mode: NORMAL
     can_id: 0
@@ -71,14 +71,14 @@ If your equipment is one of the products listed under
 [Configurations for known equipment](#configurations-for-known-equipment), you can take the entity
 blocks from there instead and only change the addresses.
 
-### Configuring the CAN bus
+### Configuring the CAN Bus
 
 ```yaml
 canbus:
   - platform: esp32_can
     id: mb_can
-    tx_pin: REPLACEME
-    rx_pin: REPLACEME
+    tx_pin: GPIOXX
+    rx_pin: GPIOXX
     bit_rate: 250kbps
     mode: NORMAL
     can_id: 0
@@ -98,7 +98,7 @@ canbus:
 > than a 115200 baud serial log can carry. Add `logs: {canbus: WARN}` to your
 > [Logger](/components/logger/) unless you are specifically debugging the bus.
 
-### Using an external CAN controller
+### Using an External CAN Controller
 
 Not every board has a CAN peripheral. ESPHome offers exactly two platforms, and which one you can
 use is decided by your MCU:
@@ -117,14 +117,14 @@ MasterBus message uses, are supported in both directions.
 
 ```yaml
 spi:
-  clk_pin: GPIO18
-  mosi_pin: GPIO23
-  miso_pin: GPIO19
+  clk_pin: GPIOXX
+  mosi_pin: GPIOXX
+  miso_pin: GPIOXX
 
 canbus:
   - platform: mcp2515
     id: mb_can
-    cs_pin: GPIO5
+    cs_pin: GPIOXX
     clock: 8MHZ       # must match the crystal on your module
     bit_rate: 250kbps
     mode: NORMAL
@@ -159,7 +159,7 @@ grounding and the connector pinout do not care which controller you chose.
 > Lost frames degrade freshness rather than break anything: a missed answer is asked for again on
 > the next `update_interval`. How much it matters in practice has not been measured here.
 
-### Configuring the hub
+### Configuring the Hub
 
 ```yaml
 masterbus:
@@ -189,7 +189,7 @@ masterbus:
 
 Several hubs may be configured, one per CAN bus.
 
-### Configuring devices
+### Configuring Devices
 
 Every entity belongs to a device, and a device is one physical unit addressed by the identifier it
 announces on the bus.
@@ -218,7 +218,7 @@ masterbus:
 - **on_online** / **on_offline** (*Optional*, [Automation](/automations/actions/)): see
   [Automations](#automations).
 
-## Finding your equipment
+## Finding Your Equipment
 
 You do not need to know your addresses in advance. Start a scan with the
 [`masterbus.scan`](#masterbus-scan-action) action, at boot or from a button, flash, and read the
@@ -355,7 +355,7 @@ numbered placeholders, in the device's own order, for you to rename.
 
 ## Entities
 
-### Common options
+### Common Options
 
 Every platform below accepts these, in addition to its own base schema, except where its section
 says otherwise: a `button` takes no `update_interval`, and a `text_sensor` with `info` takes only
@@ -530,7 +530,7 @@ One answer feeds every entity configured for that field, and an entity that hear
 not ask for skips its own next poll, so the second entity costs no extra traffic. Give the
 `update_interval` to one of them.
 
-#### What a device says about itself
+#### What a Device Says About Itself
 
 A `text_sensor` with `info` instead of `param` shows something the device says about itself
 rather than one of its fields:
@@ -596,7 +596,7 @@ configured with 35 entities at `10s` was measured transmitting **nothing at all*
 panel covered, while every entity kept updating. For a field nobody else wants, the same node polls
 at exactly the configured interval.
 
-## Writing to the bus
+## Writing to the Bus
 
 Writing works, and on real equipment it does real things. Three properties of the protocol are
 worth knowing before you wire a button into an automation.
@@ -733,7 +733,7 @@ that answered, which takes minutes on a real installation. Started again before 
 it starts the wait afresh; started while a walk is running, it logs a warning and does nothing.
 The scan is compiled in only where a configuration uses the action.
 
-## Configurations for known equipment
+## Configurations for Known Equipment
 
 Each section below is a paste-ready configuration for one kind of Mastervolt device.
 [What is listed](#what-is-listed) is the overview; each product's configuration is folded away under
@@ -745,9 +745,9 @@ things on different products: field 9 is `AC Input` current on a MassCombi and `
 A configuration is only valid for the product it was taken from. If yours is not listed, scan it:
 the scan prints blocks like these for whatever answers.
 
-Only the first section carries the `canbus:` and `logger:` stanzas; the rest assume them, and
-several devices share one hub. Mixing equipment means one `masterbus:` block with each device
-listed under `devices:`.
+The sections assume the `canbus:` and `logger:` stanzas from
+[Configuring the CAN bus](#configuring-the-can-bus), and several devices share one hub. Mixing
+equipment means one `masterbus:` block with each device listed under `devices:`.
 
 > [!NOTE]
 > The battery block section was measured on a live installation and is in daily use. The MassCombi
@@ -756,7 +756,7 @@ listed under `devices:`.
 > configurations have not themselves been run. Check the values against your equipment's own display
 > before trusting them.
 
-### What is listed
+### What Is Listed
 
 A scan prints each device's article number, the one on its label, and that is how you find your
 equipment here; its `class` and `eventables` narrow it down where the article number is missing.
@@ -764,9 +764,11 @@ See [Finding your equipment](#finding-your-equipment).
 
 | Product | Article number | `class` | `eventables` | Where the entry came from |
 |---|---|---|---|---|
-| [Lithium battery block](#lithium-battery-block) (MasterAdjust: Li-ion battery Mk2) | 66025000 | `27` | `2` | measured on a live installation, in daily use |
-| [MassCombi inverter/charger](#masscombi-invertercharger) | not known | `14` | `8` | rebuilt from a capture, never run |
-| [DC shunt](#dc-shunt) | not known | `27` | none | rebuilt from a capture, never run |
+| [Lithium battery block](#lithium-battery-block) | 66025000 | `27` | `2` | measured on a live bus, in daily use |
+| [MassCombi inverter/charger](#masscombi-invertercharger) | unknown | `14` | `8` | rebuilt from a capture, never run |
+| [DC shunt](#dc-shunt) | unknown | `27` | none | rebuilt from a capture, never run |
+
+The vendor's configuration tool, MasterAdjust, shows the lithium battery block as Li-ion battery Mk2.
 
 The MassCombi in that capture answers through its MasterBus interface, which is why its class is
 the interface's rather than the inverter/charger's.
@@ -785,7 +787,7 @@ state.
 If your device reports an article number that is not in the table, its entry is missing rather than
 wrong.
 
-### Adding a product
+### Adding a Product
 
 The list grows by contribution, and an entry needs three things:
 
@@ -805,7 +807,7 @@ and `update_interval` values in the style of the sections below rather than the 
 defaults: a scan cannot know that field 139 is a voltage, and a reader copying an entry should get
 something that looks right in Home Assistant without editing it.
 
-### Lithium battery block
+### Lithium Battery Block
 
 Reports `article` `66025000`, `class` `27` and `eventables` `2`.
 
@@ -822,20 +824,6 @@ master.
 <summary>Configuration for the lithium battery block</summary>
 
 ```yaml
-canbus:
-  - platform: esp32_can
-    id: mb_can
-    tx_pin: GPIO20
-    rx_pin: GPIO21
-    bit_rate: 250kbps
-    mode: NORMAL
-    can_id: 0
-    rx_queue_len: 32
-
-logger:
-  logs:
-    canbus: WARN
-
 masterbus:
   id: mb
   canbus_id: mb_can
@@ -963,7 +951,7 @@ button:
 > either block opens it, only the lower-numbered one closes it. See
 > [Writing to the bus](#writing-to-the-bus).
 
-### MassCombi inverter/charger
+### MassCombi Inverter/Charger
 
 Reports `class` `14` (its MasterBus interface) and `eventables` `8`.
 
@@ -1131,7 +1119,7 @@ select:
 > publishes as unavailable and logs a warning; an index that lands on the wrong entry does
 > whatever that entry does.
 
-### DC shunt
+### DC Shunt
 
 Reports `class` `27` and no `eventables`: it refuses the question.
 
@@ -1235,7 +1223,7 @@ In order:
 5. Wire the transceiver to the MCU and to the bus: [Wiring the transceiver](#wiring-the-transceiver).
 6. Flash [the configuration to start from](#a-configuration-to-start-from) and read the scan.
 
-### What you need
+### What You Need
 
 - **A CAN transceiver with 3.3 V logic.** The MCU's CAN peripheral gives you logic-level TX and RX;
   the transceiver turns that into the differential pair. An **SN65HVD230** or **TJA1051T/3** works
@@ -1250,7 +1238,7 @@ In order:
   soldered.
 - **A multimeter.** Not optional, see below.
 
-### The connector
+### The Connector
 
 A MasterBus cable is an ordinary straight-through Ethernet patch cable in Mastervolt's own jacket
 colour: eight conductors in an RJ45 plug, with the usual Ethernet colour code inside. Four of them
@@ -1275,7 +1263,7 @@ its polarity on pins 1 and 2, and 12 V on the blue pair. An unrelated installati
 [masterbus-esp32](https://github.com/pmarches/masterbus-esp32) project found the same pinout, and
 pins 1 and 2 are also where CiA 303-1, the usual pinout for CAN on RJ45, puts CAN_H and CAN_L.
 
-### Checking the pair
+### Checking the Pair
 
 > [!CAUTION]
 > Check the table above against your own cable before you connect anything. Mastervolt does not
@@ -1292,7 +1280,7 @@ With the installation **powered down**:
 
 If the 60 Ω pair is not on pins 1 and 2, trust the meter and not the table.
 
-### Wiring the transceiver
+### Wiring the Transceiver
 
 <Figure
   src={masterbusWiringImg}
@@ -1318,9 +1306,10 @@ Then name the two MCU pins in your `canbus:` block:
 ```yaml
 canbus:
   - platform: esp32_can
-    tx_pin: GPIO20   # to CTX
-    rx_pin: GPIO21   # to CRX
+    tx_pin: GPIOXX   # to CTX
+    rx_pin: GPIOXX   # to CRX
     bit_rate: 250kbps
+    can_id: 0
 ```
 
 On an ESP32 the CAN controller can be routed to most GPIOs, so pick any free pair, but avoid the
@@ -1355,7 +1344,7 @@ Check with everything powered down, measuring across CAN_H and CAN_L:
 > If it is missed, the symptom is not obvious: the controller initialises cleanly and then either
 > receives nothing or goes bus-off.
 
-### Grounding and isolation
+### Grounding and Isolation
 
 The transceiver needs a ground reference shared with the bus. Whether that is safe to make
 directly depends on your installation.
@@ -1372,7 +1361,7 @@ ground of anything else the MCU touches: another CAN bus, a USB host, a mains-po
 If the MCU also sits on a second CAN bus, such as an inverter link, check that pair too. Two bare
 transceivers on one board bond both buses to each other through the MCU's ground.
 
-### Powering the board
+### Powering the Board
 
 The MasterBus cable carries about 12 V, and it is tempting to run the MCU from it. That takes a
 step-down converter from 12 V to the board's own supply voltage; no ESP32 board takes 12 V on its
@@ -1447,24 +1436,24 @@ The frame drain and everything it triggers ran longer than the loop allows. A ve
 slow serial port is the usual cause: the logger blocks until the port accepts the bytes. Mute the
 frame log, lower the log level, or read the log over the API.
 
-### Entities stay unavailable
+### Entities Stay Unavailable
 
 Either the device is not answering (check the address against a scan) or nothing is asking. An
 entity with no `update_interval` transmits nothing and only updates when something else on the bus
 asks for the same field.
 
-### One entity goes unavailable while the rest of its device is fine
+### One Entity Goes Unavailable While the Rest of Its Device Is Fine
 
 It has a `timeout` of its own and the field has not been answered within it. Either the field
 changes more rarely than the timeout allows, or nothing is polling it.
 
-### A write is accepted but nothing happens
+### A Write Is Accepted but Nothing Happens
 
 See [Writing to the bus](#writing-to-the-bus). Check whether another device shares the equipment
 you are commanding. A field that takes no write at all is refused before anything is sent, with
 `Field N of device 0x... takes no write, by the device's own word; not written` in the log.
 
-### The log is missing lines or is full of half-lines
+### The Log Is Missing Lines or Is Full of Half-Lines
 
 The serial log cannot keep up with a busy bus. Mute the frame log with `logs: {canbus: WARN}`,
 raise the baud rate, or read the log over the API instead. Two readers on the same serial port also
