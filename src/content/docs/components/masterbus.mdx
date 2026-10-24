@@ -85,7 +85,8 @@ canbus:
     rx_queue_len: 32
 ```
 
-- **bit_rate** (**Required**): MasterBus runs at **250 kbit/s**. No other rate will work.
+- **bit_rate** (*Optional*): MasterBus runs at **250 kbit/s**, and no other rate will work, so set it: the
+  `canbus` default of `125KBPS` hears nothing on a MasterBus.
 - **mode** (*Optional*): `NORMAL` lets the node transmit, which is what polling and writing need.
   Use `LISTENONLY` for a first look at a bus you would rather not touch; entities still update
   from what other devices ask for.
@@ -202,7 +203,7 @@ masterbus:
       timeout: 60s
 ```
 
-- **id** (**Required**, [ID](/guides/configuration-types#id)): referenced by entities through
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): referenced by entities through
   `masterbus_device_id`.
 - **device** (**Required**, hex int): the device's MasterBus address, `0x0` to `0x7FFFFF`. The
   extended CAN identifier gives the address 23 bits; the rest carries the message type. The top
@@ -354,10 +355,12 @@ numbered placeholders, in the device's own order, for you to rename.
 
 ### Common options
 
-Every platform below accepts these, in addition to its own base schema:
+Every platform below accepts these, in addition to its own base schema, except where its section
+says otherwise: a `button` takes no `update_interval`, and a `text_sensor` with `info` takes only
+`masterbus_device_id` beside its own options.
 
-- **masterbus_device_id** (**Required**, [ID](/guides/configuration-types#id)): which device this
-  field belongs to.
+- **masterbus_device_id** (*Optional*, [ID](/guides/configuration-types#id)): which device this
+  field belongs to. Needed where more than one device is configured.
 - **param** (**Required**, hex int, `0x0` to `0xFFFF`): the field number.
 - **tab** (*Optional*, default `monitoring`): `monitoring`, `alarm`, `history` or
   `configuration`. See [Tabs](#tabs).
