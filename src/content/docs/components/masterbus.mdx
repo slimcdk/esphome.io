@@ -236,8 +236,8 @@ entry:
 ```txt
 [I][masterbus]: Scan found device 0x6C1001
 [I][masterbus.scan]: Walking 8 devices across all four tabs for their fields.
-[I][masterbus.scan]: device device=0x6C1001 class=27 eventables=2 article="66025000" serial="AB00A0001" name="Battery 1" revision="AA0012" firmware="1.4 0.33"
-[I][masterbus.scan]: count device=0x6C1001 q=0x0B value=260
+[I][masterbus.scan]: device device=0x6C1001 class=27 eventables=2 article="66025000" serial="AB00A0001" name="Battery 1" revision="AB0001" firmware="1.0 0.10"
+[I][masterbus.scan]: count device=0x6C1001 q=0x0B value=100
 [I][masterbus.scan]: count device=0x6C1001 q=0x40 value=117
 [I][masterbus.scan]: count device=0x6C1001 q=0x41 value=119
 [I][masterbus.scan]: group device=0x6C1001 tab=0 group=1 name="Battery"
@@ -746,10 +746,10 @@ listed under `devices:`.
 
 > [!NOTE]
 > The battery block section was measured on a live installation and is in daily use. The MassCombi
-> and shunt sections were rebuilt from a capture of a **different** installation taken in 2022: the
-> field numbers, names, units and ranges are the devices' own, read out of their string tables, but
-> those two configurations have not themselves been run. Check the values against your equipment's
-> own display before trusting them.
+> and shunt sections were rebuilt from a capture of a **different** installation: the field numbers,
+> names, units and ranges are the devices' own, read out of their string tables, but those two
+> configurations have not themselves been run. Check the values against your equipment's own display
+> before trusting them.
 
 ### What is listed
 
@@ -760,8 +760,8 @@ See [Finding your equipment](#finding-your-equipment).
 | Product | Article number | `class` | `eventables` | Where the entry came from |
 |---|---|---|---|---|
 | [Lithium battery block](#lithium-battery-block) (MasterAdjust: Li-ion battery Mk2) | 66025000 | `27` | `2` | measured on a live installation, in daily use |
-| [MassCombi inverter/charger](#masscombi-invertercharger) | not known | `14` | `8` | rebuilt from a 2022 capture, never run |
-| [DC shunt](#dc-shunt) | not known | `27` | none | rebuilt from a 2022 capture, never run |
+| [MassCombi inverter/charger](#masscombi-invertercharger) | not known | `14` | `8` | rebuilt from a capture, never run |
+| [DC shunt](#dc-shunt) | not known | `27` | none | rebuilt from a capture, never run |
 
 The MassCombi in that capture answers through its MasterBus interface, which is why its class is
 the interface's rather than the inverter/charger's.
@@ -1114,7 +1114,7 @@ select:
     masterbus_device_id: mb_combi
     param: 20
     name: Inverter
-    # The device's own names for options 0 and 1, read off the 2022 capture, where a display panel
+    # The device's own names for options 0 and 1, read off the capture, where a display panel
     # asked for them. Whether there are more is not known: a scan of yours lists every one.
     options: ["Off", "On"]
 ```
