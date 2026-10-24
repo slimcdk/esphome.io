@@ -23,8 +23,10 @@ library. Nothing in this component guesses at a frame it has not seen.
 
 ## Setup
 
-The component sits on top of the standard [CAN Bus](/components/canbus/) component, so any CAN
-platform ESPHome supports will do.
+The component sits on top of the standard [CAN Bus](/components/canbus/) component, and works with
+either of the CAN platforms ESPHome has: an ESP32's own controller, or an MCP2515 on SPI. See
+[Using an External CAN Controller](#using-an-external-can-controller) for which boards each one
+runs on.
 
 ### A Configuration to Start From
 
@@ -106,11 +108,11 @@ use is decided by your MCU:
 
 | Platform | Interface | Works on |
 |---|---|---|
-| [`esp32_can`](/components/canbus/esp32_can/) | built in | the ESP32 family only |
-| [`mcp2515`](/components/canbus/mcp2515/) | SPI | anything ESPHome runs on |
+| [`esp32_can`](/components/canbus/esp32_can/) | built in | every ESP32 variant except the ESP32-C2 |
+| [`mcp2515`](/components/canbus/mcp2515/) | SPI | ESP32, ESP8266 and RP2, the platforms ESPHome has SPI on |
 
 There is **no I2C or UART CAN platform** in ESPHome. If your board has no CAN peripheral, SPI and
-an MCP2515 is the route.
+an MCP2515 is the route; on other platforms, such as the LibreTiny boards, neither is available.
 
 The MCP2515 is a full CAN 2.0B controller, so it handles everything MasterBus needs: 250 kbit/s is
 available on all four supported crystal frequencies, and extended identifiers, which every
