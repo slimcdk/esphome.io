@@ -65,9 +65,6 @@
 <script is:inline>
   (function () {
     const TABS = { 0: "monitoring", 1: "alarm", 2: "history", 3: "configuration" };
-    // Whether the message that reads a value on that tab has been watched on a bus, or comes from
-    // the vendor's own library and has not.
-    const TAB_READABLE = { 0: "measured", 1: "library", 2: "library", 3: "seen" };
 
     // The vendor's display types. A field is only turned into an entity where its type says what
     // the value means, and anything new is left alone. The list types - 2 and 3 (options), 9 (a
@@ -640,9 +637,6 @@
           lines_out.push("    min_value: " + (field.min === undefined ? 0 : field.min));
           lines_out.push("    max_value: " + (field.max === undefined ? 100 : field.max));
           lines_out.push("    step: " + (field.step === undefined ? 1 : field.step));
-        }
-        if (TAB_READABLE[tab] === "library") {
-          lines_out.push("    # this tab's value message comes from the vendor library, not a capture: check it");
         }
         if (display.writable !== undefined && writable === undefined) {
           lines_out.push("    # to control it instead, change the platform to " + display.writable);

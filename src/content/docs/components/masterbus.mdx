@@ -30,7 +30,8 @@ platform ESPHome supports will do.
 
 You do not need to know anything about your bus to begin. This is complete: paste it, set the two
 pins, flash, and read the log. It transmits one broadcast, lists every device that answers, and
-prints the configuration for what it finds.
+logs what each one says about itself and its fields, which the converter below turns into
+configuration.
 
 ```yaml
 esphome:
@@ -65,7 +66,7 @@ masterbus:
 ```
 
 Take the scan out of `on_boot` again once you have what you need. Then add `devices:` and the
-entities the scan printed.
+entities the converter made of the scan.
 
 If your equipment is one of the products listed under
 [Configurations for known equipment](#configurations-for-known-equipment), you can take the entity
@@ -336,9 +337,7 @@ section's names, intervals and notes for every field the scan matches.
 A field number only means something together with its tab. Field 9 is `AC Input` current on a
 MassCombi's monitoring tab; the same number on another tab is another field entirely.
 
-All four tabs can be read. Alarm and history values travel on message numbers taken from the
-vendor's own library and not yet watched on a bus, and the converter marks those entities with a
-comment. See [Tabs](#tabs).
+All four tabs can be read, and each has been read on a live bus. See [Tabs](#tabs).
 
 Where a device does not answer `writable`, as in a scan from before it was reported, the
 converter offers the read-only platform of a pair (a `sensor` where a `number` may be possible, a
@@ -436,8 +435,8 @@ button:
 
 ### `number`
 
-A numeric field you can set. `min_value`, `max_value` and `step` are required; a scan prints the
-device's own range as a comment.
+A numeric field you can set. `min_value`, `max_value` and `step` are required; a scan reports the
+device's own range as the field's `min`, `max` and `step`, and the converter fills them in.
 
 ```yaml
 number:
@@ -563,15 +562,16 @@ field's address, not a filter.
 |---|---|---|
 | `monitoring` (default) | yes, measured | yes, measured |
 | `configuration` | yes, seen | yes, from the vendor library |
-| `history` | yes, from the vendor library | yes, from the vendor library |
-| `alarm` | yes, from the vendor library | yes, from the vendor library |
+| `history` | yes, seen | yes, from the vendor library |
+| `alarm` | yes, seen | yes, from the vendor library |
 
 **Measured** means frames of that shape were captured on a live bus and checked against what the
 vendor's own software reported for the same field. **Seen** means answers of that shape came back
 on a live bus and read sensibly (a display's own name, its message texts, a battery's charge
-thresholds) but were not compared with the vendor's software. **From the vendor library** means the
-message numbers are the ones the vendor's own library uses for that tab, read out of the library
-itself, but no device has yet been watched answering one. Every tab carries a value the same way, a
+thresholds, its days running and its alarm states) but were not compared with the vendor's
+software. **From the vendor library** means the message numbers are the ones the vendor's own
+library uses for that tab, read out of the library itself, but no device has yet been watched
+taking a write on one. Every tab carries a value the same way, a
 field number and 32 bits, and an answer that is not that length is dropped rather than guessed at.
 A wrong assumption therefore shows up as a value that never arrives, not as a wrong reading.
 
@@ -662,7 +662,7 @@ Fires when nothing has been heard from the device for its `timeout`.
 Fires for any frame this component reads past without understanding. There are two kinds:
 
 - **A message nobody here reads.** Either a type the vendor's own library would refuse, or one it
-  accepts without looking inside: the bus message, `0x02`, and the bootloader's, `0x3D`, `0x1D` and
+  accepts without looking inside: the Parallel message, `0x02`, and the bootloader's, `0x3D`, `0x1D` and
   `0x2D`.
 - **A write that another node sent.** A write uses the same message as a read, six bytes instead of
   two, and a write to an event is followed by a second write to the next field number that carries
@@ -738,12 +738,12 @@ The scan is compiled in only where a configuration uses the action.
 Each section below is a paste-ready configuration for one kind of Mastervolt device.
 [What is listed](#what-is-listed) is the overview; each product's configuration is folded away under
 its heading, so expand the one you need. Change the `device:` address to your own, which
-[Finding your equipment](#finding-your-equipment) prints, and leave everything else as it stands.
+[Finding your equipment](#finding-your-equipment) reports, and leave everything else as it stands.
 
 Field numbers are not standard across Mastervolt equipment. The same number means different
 things on different products: field 9 is `AC Input` current on a MassCombi and `Time` on a shunt.
 A configuration is only valid for the product it was taken from. If yours is not listed, scan it:
-the scan prints blocks like these for whatever answers.
+the converter makes blocks like these of whatever answers.
 
 The sections assume the `canbus:` and `logger:` stanzas from
 [Configuring the CAN bus](#configuring-the-can-bus), and several devices share one hub. Mixing
@@ -758,7 +758,7 @@ equipment means one `masterbus:` block with each device listed under `devices:`.
 
 ### What Is Listed
 
-A scan prints each device's article number, the one on its label, and that is how you find your
+A scan reports each device's article number, the one on its label, and that is how you find your
 equipment here; its `class` and `eventables` narrow it down where the article number is missing.
 See [Finding your equipment](#finding-your-equipment).
 
@@ -1422,8 +1422,8 @@ will find nothing. Scanning needs `mode: NORMAL`.
 
 ### `Scan is full at N devices`
 
-More devices answered than the scan can hold. The rest are not listed. Raise the limit or scan a
-smaller bus.
+More devices answered than the scan can hold, which is 32. The rest are not listed, and the limit
+is fixed: scan with fewer devices connected.
 
 ### `Maximum number of esp32_can components created already`
 
@@ -1461,8 +1461,8 @@ produce interleaved half-lines that look like corruption but are not.
 
 ## Limitations
 
-- Only `monitoring` reads and writes have been watched on a bus. The other tabs use the message
-  numbers of the vendor's own library. See [Tabs](#tabs).
+- Reads have been watched on a bus on all four tabs, writes only on `monitoring`. The other tabs'
+  writes use the message numbers of the vendor's own library. See [Tabs](#tabs).
 - A list field answers with the index of an entry, and the entry's name is in your configuration,
   as a scan reported it. A device whose list changes after the scan shows the old names.
 - A scan reads a device's article number, serial number and name and whether each field takes a
