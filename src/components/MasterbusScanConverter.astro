@@ -396,6 +396,9 @@
           text = (deviceNames[field.device] || field.device.replace(/^0x/i, "").toUpperCase()) + " " + text;
           prefixed = true;
         }
+        // ESPHome keeps "/" for its URLs and replaces it in a name with a fraction slash, which
+        // looks the same; doing it here keeps the configuration free of the warning.
+        text = text.replace(/\//g, "\u2044");
         // What is left is one device using one name for two different fields, and only the field
         // number separates those.
         while (taken[text] !== undefined) text = text + " " + field.param;
@@ -424,8 +427,7 @@
       return field.device + "/" + field.tab + "/" + field.param;
     }
 
-    function convert(text) {
-      const lines = readScan(text);
+    function convert(lines) {
       const fields = lines.filter((entry) => entry.kind === "field");
       // A scan opens each device with a line of its own, so a device that describes no fields is
       // still configurable. Older scans printed no such line; the field lines still name it.
@@ -609,8 +611,8 @@
             BATTERY_MONITORS.has(classes[address(field.device)]);
           if (quantity !== undefined) lines_out.push("    device_class: " + quantity.deviceClass);
           else if (charge) lines_out.push("    device_class: battery");
-          if (platform === "sensor" && monitoring) lines_out.push("    state_class: measurement");
         }
+        if (platform === "sensor" && monitoring) lines_out.push("    state_class: measurement");
         if (platform === "sensor" && field.step !== undefined && Number(field.step) > 0) {
           lines_out.push(
             "    accuracy_decimals: " + (overlay.decimals !== undefined ? overlay.decimals : decimals(field.step)),
@@ -706,9 +708,9 @@
     if (input === null || output === null || button === null) return;
 
     button.addEventListener("click", function () {
-      const text = input.value;
-      output.value = convert(text);
-      const count = readScan(text).filter((entry) => entry.kind === "field").length;
+      const lines = readScan(input.value);
+      output.value = convert(lines);
+      const count = lines.filter((entry) => entry.kind === "field").length;
       if (status !== null) status.textContent = count + (count === 1 ? " field read" : " fields read");
     });
   })();
